@@ -6,15 +6,18 @@
  * - 실시간 설정 저장 및 불러오기
  *
  * 주요 기능:
- * 1. **모니터링 설정**: 폴링 주기 조정 (1-10초)
+ * 1. **모니터링 설정**: DB 폴링 주기 조정 (0-600초, 즉 0초~10분)
  * 2. **Mock 모드 설정**: PLC/DB Mock 모드 활성화/비활성화
- * 3. **윈도우 시간 설정**: 불량 집계 윈도우 시간 조정 (1-24시간)
- * 4. **알림 설정**: 브라우저 알림, 소리 알림 활성화/비활성화
+ * 3. **Mock DB 불량 확률**: Mock 모드에서 불량 생성 확률 조정 (10-90%)
+ * 4. **윈도우 시간 설정**: 불량 집계 윈도우 시간 조정 (1-24시간)
+ * 5. **알림 설정**: 브라우저 알림, 소리 알림 활성화/비활성화
  *
  * 동작 원리:
  * - GET /api/settings로 현재 설정 불러오기
  * - POST /api/settings로 설정 저장
  * - 설정 변경 시 즉시 서버에 반영
+ * - 폴링 주기가 0초면 매 사이클마다 폴링 (최대 빈도)
+ * - 폴링 주기가 600초면 10분마다 한 번 폴링 (최소 빈도)
  */
 
 "use client";
@@ -69,7 +72,7 @@ interface Settings {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
-    polling: { interval: 1 },
+    polling: { interval: 5 }, // 기본값: 5초
     mock: { plc: true, db: true, db_defect_probability: 0.3 },
     window: { duration: 1 },
     notification: { browser: true, sound: true },
@@ -128,7 +131,7 @@ export default function SettingsPage() {
   const resetSettings = () => {
     if (confirm("설정을 기본값으로 초기화하시겠습니까?")) {
       setSettings({
-        polling: { interval: 1 },
+        polling: { interval: 5 }, // 기본값: 5초
         mock: { plc: true, db: true, db_defect_probability: 0.3 },
         window: { duration: 1 },
         notification: { browser: true, sound: true },
@@ -412,12 +415,12 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                폴링 주기: {settings.polling.interval}초
+                DB 폴링 주기: {settings.polling.interval === 0 ? '즉시' : settings.polling.interval < 60 ? `${settings.polling.interval}초` : `${Math.round(settings.polling.interval / 60 * 10) / 10}분`}
               </label>
               <input
                 type="range"
-                min="1"
-                max="10"
+                min="0"
+                max="600"
                 value={settings.polling.interval}
                 onChange={(e) =>
                   setSettings({
@@ -428,9 +431,12 @@ export default function SettingsPage() {
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>1초 (빠름)</span>
-                <span>10초 (느림)</span>
+                <span>즉시 (매우 빠름)</span>
+                <span>10분 (느림)</span>
               </div>
+              <p className="text-xs text-gray-400 mt-2">
+                데이터베이스를 조회하는 주기입니다. 짧을수록 불량을 빠르게 감지하지만 시스템 부하가 증가합니다.
+              </p>
             </div>
           </div>
         </div>

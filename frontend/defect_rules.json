@@ -5,5 +5,19 @@
     "threshold": 5,
     "is_active": true,
     "created_at": "2025-11-26T04:46:13.120Z"
+  },
+  "NG002": {
+    "code": "NG002",
+    "name": "기능불량",
+    "threshold": 3,
+    "is_active": true,
+    "created_at": "2025-11-26T06:46:02.303Z"
+  },
+  "NG003": {
+    "code": "NG003",
+    "name": "상식이하",
+    "threshold": 1,
+    "is_active": true,
+    "created_at": "2025-11-26T06:46:16.416Z"
   }
 }
