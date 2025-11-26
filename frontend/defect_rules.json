@@ -1,0 +1,9 @@
+{
+  "NG001": {
+    "code": "NG001",
+    "name": "외관불량",
+    "threshold": 5,
+    "is_active": true,
+    "created_at": "2025-11-26T04:46:13.120Z"
+  }
+}
