@@ -90,6 +90,13 @@ class PLC {
   }
 
   /**
+   * Mock 모드 여부를 반환합니다.
+   */
+  get isMockMode(): boolean {
+    return this.mockMode;
+  }
+
+  /**
    * 라인 상태를 읽어옵니다.
    *
    * @returns 'RUNNING' 또는 'STOPPED'

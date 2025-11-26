@@ -70,4 +70,19 @@ export interface MonitorStatus {
   current_counts: Record<string, number>;
   /** 현재 윈도우의 불량 리스트 */
   current_defects: Defect[];
+  /** 시스템 상태 (새로 추가됨) */
+  system_status?: {
+    /** DB 폴링 상태 */
+    db_polling: boolean;
+    /** DB 모드 (Mock/Real) */
+    db_mode: 'Mock' | 'Real';
+    /** PLC 연결 상태 */
+    plc_connected: boolean;
+    /** PLC 모드 (Mock/Real) */
+    plc_mode: 'Mock' | 'Real';
+    /** 마지막 PLC 명령 전송 시간 */
+    last_plc_command: string | null;
+    /** 마지막 PLC 명령 내용 */
+    last_plc_command_type: 'STOP' | 'RESET' | null;
+  };
 }

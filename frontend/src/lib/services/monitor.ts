@@ -58,6 +58,10 @@ class MonitorService {
   private currentCounts: Record<string, number> = {};
   private windowDefects: Defect[] = [];
 
+  // 시스템 상태 추적
+  private lastPlcCommand: Date | null = null;
+  private lastPlcCommandType: 'STOP' | 'RESET' | null = null;
+
   /**
    * 모니터링 서비스를 시작합니다.
    */
@@ -86,7 +90,7 @@ class MonitorService {
   /**
    * 현재 모니터링 상태를 반환합니다.
    *
-   * @returns 서비스 상태, 라인 상태, 윈도우 정보, 카운트, 불량 리스트
+   * @returns 서비스 상태, 라인 상태, 윈도우 정보, 카운트, 불량 리스트, 시스템 상태
    */
   getStatus(): MonitorStatus {
     return {
@@ -100,6 +104,14 @@ class MonitorService {
       },
       current_counts: this.currentCounts,
       current_defects: this.windowDefects,
+      system_status: {
+        db_polling: this.running,
+        db_mode: db.isMockMode ? 'Mock' : 'Real',
+        plc_connected: true, // 항상 연결됨 (Mock 또는 Real)
+        plc_mode: plc.isMockMode ? 'Mock' : 'Real',
+        last_plc_command: this.lastPlcCommand?.toISOString() ?? null,
+        last_plc_command_type: this.lastPlcCommandType,
+      },
     };
   }
 
@@ -179,6 +191,7 @@ class MonitorService {
         const reason = `${rule.name} (${defect.code}) ${count}회 발생 (기준 ${rule.threshold}회)`;
         logger.log('WARN', 'Monitor', `임계값 초과! ${reason}`);
         plc.stopLine(reason);
+        this.recordPlcStop(); // PLC 정지 명령 기록
       }
     }
   }
@@ -205,7 +218,18 @@ class MonitorService {
    */
   resolveStop(reason: string): void {
     plc.resetLine();
+    this.lastPlcCommand = new Date();
+    this.lastPlcCommandType = 'RESET';
     // 윈도우는 리셋하지 않음 (시간 만료 시에만 리셋)
+  }
+
+  /**
+   * PLC 정지 명령을 기록합니다 (내부용)
+   * @internal
+   */
+  recordPlcStop(): void {
+    this.lastPlcCommand = new Date();
+    this.lastPlcCommandType = 'STOP';
   }
 }
 

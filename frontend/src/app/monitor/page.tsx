@@ -25,7 +25,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle, Clock, Server, Database, Radio, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import BackButton from "@/components/BackButton";
@@ -161,6 +161,85 @@ export default function MonitorPage() {
           </div>
         </div>
       )}
+
+      {/* 시스템 상태 섹션 */}
+      <div className="mb-8 bg-card border-2 border-border rounded-xl p-6 shadow-sm">
+        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <Server className="w-5 h-5 text-purple-400" />
+          시스템 상태
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* DB 폴링 상태 */}
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-blue-400" />
+            <div>
+              <p className="text-xs text-muted-foreground">DB 폴링</p>
+              <p className="text-sm font-semibold">{status.system_status?.db_polling ? "활성" : "정지"}</p>
+            </div>
+          </div>
+
+          {/* DB 모드 */}
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-cyan-400" />
+            <div>
+              <p className="text-xs text-muted-foreground">DB 모드</p>
+              <p className="text-sm font-semibold">{status.system_status?.db_mode}</p>
+            </div>
+          </div>
+
+          {/* PLC 연결 */}
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-green-400" />
+            <div>
+              <p className="text-xs text-muted-foreground">PLC 연결</p>
+              <p className="text-sm font-semibold flex items-center gap-1">
+                {status.system_status?.plc_connected ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    연결됨
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 text-red-500" />
+                    끊김
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* PLC 모드 */}
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-yellow-400" />
+            <div>
+              <p className="text-xs text-muted-foreground">PLC 모드</p>
+              <p className="text-sm font-semibold">{status.system_status?.plc_mode}</p>
+            </div>
+          </div>
+
+          {/* 마지막 PLC 명령 */}
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-orange-400" />
+            <div>
+              <p className="text-xs text-muted-foreground">마지막 명령</p>
+              <p className="text-sm font-semibold">
+                {status.system_status?.last_plc_command_type ? (
+                  <>
+                    {status.system_status.last_plc_command_type}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {status.system_status.last_plc_command
+                        ? format(new Date(status.system_status.last_plc_command), "HH:mm:ss")
+                        : "없음"}
+                    </span>
+                  </>
+                ) : (
+                  "없음"
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 왼쪽: 윈도우 정보 */}

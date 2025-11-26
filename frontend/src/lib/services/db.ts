@@ -112,6 +112,13 @@ class Database {
   }
 
   /**
+   * Mock 모드 여부를 반환합니다.
+   */
+  get isMockMode(): boolean {
+    return this.mockMode;
+  }
+
+  /**
    * JSON 파일에서 규칙을 로드합니다.
    */
   private loadRules(): void {
