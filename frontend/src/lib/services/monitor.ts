@@ -43,14 +43,18 @@
 import { db } from './db';
 import { plc } from './plc';
 import { logger } from './logger';
+import { globalState } from './state';
 import { Defect, MonitorStatus } from '@/lib/types';
 
 /**
  * 모니터링 서비스 클래스
+ *
+ * 주의: Next.js의 모듈 시스템에서 각 라우트가 독립적으로 실행되므로,
+ * running 상태와 intervalId는 globalState에 저장됩니다.
+ * 이를 통해 모든 라우트에서 같은 상태를 공유합니다.
  */
 class MonitorService {
-  private running: boolean = false;
-  private intervalId: NodeJS.Timeout | null = null;
+  // running과 intervalId는 globalState에 저장됨
 
   // 윈도우 상태 관리
   private windowStartTime: Date | null = null;
@@ -66,9 +70,10 @@ class MonitorService {
    * 모니터링 서비스를 시작합니다.
    */
   start(): void {
-    if (!this.running) {
-      this.running = true;
-      this.intervalId = setInterval(() => this.processCycle(), 5000);
+    if (!globalState.isRunning()) {
+      globalState.setRunning(true);
+      const intervalId = setInterval(() => this.processCycle(), 5000);
+      globalState.setIntervalId(intervalId);
       console.log('[Monitor] Service Started');
       logger.log('INFO', 'Monitor', '모니터링 서비스가 시작되었습니다.');
     }
@@ -78,11 +83,8 @@ class MonitorService {
    * 모니터링 서비스를 정지합니다.
    */
   stop(): void {
-    this.running = false;
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    globalState.setRunning(false);
+    globalState.clearInterval();
     console.log('[Monitor] Service Stopped');
     logger.log('INFO', 'Monitor', '모니터링 서비스가 정지되었습니다.');
   }
@@ -93,8 +95,9 @@ class MonitorService {
    * @returns 서비스 상태, 라인 상태, 윈도우 정보, 카운트, 불량 리스트, 시스템 상태
    */
   getStatus(): MonitorStatus {
+    const isRunning = globalState.isRunning();
     return {
-      is_running: this.running,
+      is_running: isRunning,
       line_status: plc.readStatus(),
       stop_reason: plc.stopReason,
       window_info: {
@@ -105,7 +108,7 @@ class MonitorService {
       current_counts: this.currentCounts,
       current_defects: this.windowDefects,
       system_status: {
-        db_polling: this.running,
+        db_polling: isRunning,
         db_mode: db.isMockMode ? 'Mock' : 'Real',
         plc_connected: true, // 항상 연결됨 (Mock 또는 Real)
         plc_mode: plc.isMockMode ? 'Mock' : 'Real',
