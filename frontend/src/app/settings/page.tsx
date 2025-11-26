@@ -44,6 +44,7 @@ interface Settings {
   mock: {
     plc: boolean; // PLC Mock 모드
     db: boolean; // DB Mock 모드
+    db_defect_probability?: number; // DB 불량 생성 확률 (0.1 ~ 0.9)
   };
   window: {
     duration: number; // 윈도우 시간 (시간)
@@ -69,7 +70,7 @@ interface Settings {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     polling: { interval: 1 },
-    mock: { plc: true, db: true },
+    mock: { plc: true, db: true, db_defect_probability: 0.3 },
     window: { duration: 1 },
     notification: { browser: true, sound: true },
   });
@@ -128,7 +129,7 @@ export default function SettingsPage() {
     if (confirm("설정을 기본값으로 초기화하시겠습니까?")) {
       setSettings({
         polling: { interval: 1 },
-        mock: { plc: true, db: true },
+        mock: { plc: true, db: true, db_defect_probability: 0.3 },
         window: { duration: 1 },
         notification: { browser: true, sound: true },
       });
@@ -487,6 +488,39 @@ export default function SettingsPage() {
                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
               </label>
             </div>
+
+            {/* DB Mock 불량 생성 확률 */}
+            {settings.mock.db && (
+              <div className="p-4 bg-gray-700/50 rounded-lg">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Mock DB 불량 생성 확률: {Math.round((settings.mock.db_defect_probability || 0.3) * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="0.9"
+                  step="0.1"
+                  value={settings.mock.db_defect_probability || 0.3}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      mock: {
+                        ...settings.mock,
+                        db_defect_probability: parseFloat(e.target.value),
+                      },
+                    })
+                  }
+                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                  <span>낮음 (10%)</span>
+                  <span>높음 (90%)</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  폴링 주기마다 불량이 발생할 확률입니다. 높을수록 자주 발생합니다.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

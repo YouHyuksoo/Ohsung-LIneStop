@@ -49,6 +49,7 @@ class Database {
   private rules: Map<string, DefectRule> = new Map();
   private _mockDefects: Defect[] = [];
   private mockMode: boolean = true;
+  private defectProbability: number = 0.3; // 기본값: 30%
 
   // DB Connection Details
   private dbConfig = {
@@ -87,8 +88,13 @@ class Database {
           };
         }
 
-        if (settings.mock && typeof settings.mock.db === "boolean") {
-          this.mockMode = settings.mock.db;
+        if (settings.mock) {
+          if (typeof settings.mock.db === "boolean") {
+            this.mockMode = settings.mock.db;
+          }
+          if (typeof settings.mock.db_defect_probability === "number") {
+            this.defectProbability = settings.mock.db_defect_probability;
+          }
         }
 
         if (!this.mockMode) {
@@ -96,6 +102,12 @@ class Database {
             "INFO",
             "DB",
             `Oracle DB 설정 로드됨 (${this.dbConfig.host}:${this.dbConfig.port}/${this.dbConfig.service})`
+          );
+        } else {
+          logger.log(
+            "INFO",
+            "DB",
+            `Mock DB 설정 로드됨 (불량 생성 확률: ${Math.round(this.defectProbability * 100)}%)`
           );
         }
       }
@@ -217,7 +229,12 @@ class Database {
 
   /**
    * 테스트용 랜덤 불량을 생성합니다.
-   * 활성화된 규칙 중에서 10% 확률로 불량 발생
+   * 활성화된 규칙 중에서 시뮬레이션 확률로 불량 발생
+   *
+   * Mock 모드 시뮬레이션:
+   * - 30% 확률로 불량 발생
+   * - 1회~3회 연속으로 발생 가능
+   * - 더 현실적인 불량 시뮬레이션을 위해 설계
    *
    * @returns 생성된 불량 배열
    */
@@ -225,32 +242,46 @@ class Database {
     const newDefects: Defect[] = [];
     const now = new Date();
 
-    // 10% 확률로 불량 생성
-    if (Math.random() < 0.1) {
-      const activeRules = Array.from(this.rules.values()).filter(
-        (r) => r.is_active
-      );
+    const activeRules = Array.from(this.rules.values()).filter(
+      (r) => r.is_active
+    );
 
-      if (activeRules.length > 0) {
+    if (activeRules.length === 0) {
+      return newDefects; // 활성 규칙이 없으면 반환
+    }
+
+    // 설정된 확률로 불량 발생
+    if (Math.random() < this.defectProbability) {
+      // 1회~3회 연속 불량 발생 가능
+      const defectCount = Math.floor(Math.random() * 3) + 1;
+
+      for (let i = 0; i < defectCount; i++) {
+        // 각 불량은 50ms 간격으로 생성
+        const timestamp = new Date(now.getTime() + i * 50);
+
+        // 활성 규칙 중 랜덤 선택 (가중치 적용)
+        // 일부 규칙은 더 자주 나타날 수 있음
         const rule =
           activeRules[Math.floor(Math.random() * activeRules.length)];
+
         const defect: Defect = {
-          id: `D-${Date.now()}`,
+          id: `D-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           code: rule.code,
           name: rule.name,
-          timestamp: now.toISOString(),
+          timestamp: timestamp.toISOString(),
           resolved: false,
         };
 
         this._mockDefects.push(defect);
         newDefects.push(defect);
+
         console.log(
-          `[MockDB] Generated Defect: ${defect.code} - ${defect.name}`
+          `[MockDB] Generated Defect: ${defect.code} - ${defect.name} (${i + 1}/${defectCount})`
         );
         logger.log(
           "DEBUG",
           "DB",
-          `Mock 불량 생성: ${defect.code} - ${defect.name}`
+          `Mock 불량 생성: ${defect.code} - ${defect.name} (연속 ${i + 1}/${defectCount}회)`
         );
       }
     }
