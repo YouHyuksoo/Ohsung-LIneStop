@@ -1,3 +1,16 @@
 frontend/.next
 frontend/next-env.d.ts
 node_modules
+
+*storybook.log
+storybook-static
+.claude/settings.local.json
+
+# Storybook
+.storybook
+**/*.stories.*
+src/stories
+
+# Next.js
+.next
+nul

@@ -1,0 +1,34 @@
+{
+  "NG001": {
+    "code": "NG001",
+    "name": "외관불량",
+    "type": "APPEARANCE",
+    "threshold": 5,
+    "is_active": true,
+    "created_at": "2025-11-26T12:06:57.462Z"
+  },
+  "NG002": {
+    "code": "NG002",
+    "name": "기능불량",
+    "type": "FUNCTION",
+    "threshold": 3,
+    "is_active": true,
+    "created_at": "2025-11-26T06:46:02.303Z"
+  },
+  "NG003": {
+    "code": "NG003",
+    "name": "상식이하",
+    "type": "COMMON_SENSE",
+    "threshold": 1,
+    "is_active": true,
+    "created_at": "2025-11-26T06:46:16.416Z"
+  },
+  "NG004": {
+    "code": "NG004",
+    "name": "작업자안전",
+    "type": "PL",
+    "threshold": 1,
+    "is_active": true,
+    "created_at": "2025-11-26T14:30:22.386Z"
+  }
+}

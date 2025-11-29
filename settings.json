@@ -1,0 +1,29 @@
+{
+  "polling": {
+    "interval": 10
+  },
+  "mock": {
+    "plc": true,
+    "db": true,
+    "db_defect_probability": 0.5
+  },
+  "window": {
+    "duration": 1
+  },
+  "notification": {
+    "browser": true,
+    "sound": true
+  },
+  "plc": {
+    "ip": "192.168.0.1",
+    "port": 5000,
+    "address": "D100"
+  },
+  "db": {
+    "host": "localhost",
+    "port": 1521,
+    "service": "xe",
+    "user": "system",
+    "password": ""
+  }
+}
