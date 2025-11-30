@@ -15,3 +15,6 @@ nul
 # Next.js
 .next
 nul
+
+# Logs
+logs.db
