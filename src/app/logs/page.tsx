@@ -198,13 +198,6 @@ export default function LogsPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              메인으로 돌아가기
-            </Link>
             <button
               onClick={clearLogs}
               disabled={loading}

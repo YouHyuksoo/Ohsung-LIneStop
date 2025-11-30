@@ -26,6 +26,8 @@ import {
   GitBranch,
   Zap,
   Shield,
+  Lock,
+  PlayCircle,
 } from "lucide-react";
 
 export default function Home() {
@@ -34,17 +36,10 @@ export default function Home() {
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
         <div className="text-center mb-12">
-          <div className="inline-block px-4 py-2 mb-4 border border-blue-500/30 bg-blue-500/10 rounded-full text-sm">
-            JisungSolution v1.0 - 불량 모니터링 시스템
-          </div>
-
           {/* 타이틀 */}
-          <h1 className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+          <h1 className="text-6xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
             라인 인터락 제어 시스템
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            실시간 불량 감지 및 자동 라인 정지 시스템
-          </p>
         </div>
 
         {/* 주요 메뉴 그리드 */}
@@ -99,9 +94,12 @@ export default function Home() {
                   <Settings className="w-6 h-6 text-orange-400" />
                 </div>
                 <h2 className="text-2xl font-semibold">관리자</h2>
-                <span className="ml-auto text-orange-400 group-hover:translate-x-1 transition-transform">
-                  →
-                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-orange-400/70" />
+                  <span className="text-orange-400 group-hover:translate-x-1 transition-transform">
+                    →
+                  </span>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 서비스 제어 및 불량 규칙 관리
@@ -118,9 +116,12 @@ export default function Home() {
                   <Settings className="w-6 h-6 text-purple-400" />
                 </div>
                 <h2 className="text-2xl font-semibold">설정</h2>
-                <span className="ml-auto text-purple-400 group-hover:translate-x-1 transition-transform">
-                  →
-                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-purple-400/70" />
+                  <span className="text-purple-400 group-hover:translate-x-1 transition-transform">
+                    →
+                  </span>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 PLC 주소, DB 연결 정보 등 시스템 설정
@@ -164,6 +165,71 @@ export default function Home() {
                 사용자 가이드 및 시스템 도움말
               </p>
             </Link>
+          </div>
+        </section>
+
+        {/* 빠른 시작 가이드 섹션 */}
+        <section className="mb-16">
+          <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
+            <Zap className="w-8 h-8 text-yellow-400" />
+            빠른 시작
+          </h2>
+          <div className="bg-card border rounded-xl p-8 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+              {/* 연결선 (데스크탑 전용) */}
+              <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent -translate-y-1/2 z-0" />
+
+              {/* 1단계: 설정 등록 */}
+              <div className="relative z-10 flex flex-col items-center text-center group">
+                <div className="w-16 h-16 rounded-full bg-background border-2 border-purple-500/30 flex items-center justify-center mb-4 shadow-sm group-hover:border-purple-500 group-hover:shadow-md transition-all">
+                  <Settings className="w-8 h-8 text-purple-400" />
+                </div>
+                <div className="bg-card px-2">
+                  <h3 className="text-lg font-bold mb-2 text-purple-400">
+                    1. 설정 등록
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    관리자 페이지에서 라인, 설비,
+                    <br />
+                    모델 및 불량 규칙을 등록합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 2단계: 서비스 시작 */}
+              <div className="relative z-10 flex flex-col items-center text-center group">
+                <div className="w-16 h-16 rounded-full bg-background border-2 border-orange-500/30 flex items-center justify-center mb-4 shadow-sm group-hover:border-orange-500 group-hover:shadow-md transition-all">
+                  <PlayCircle className="w-8 h-8 text-orange-400" />
+                </div>
+                <div className="bg-card px-2">
+                  <h3 className="text-lg font-bold mb-2 text-orange-400">
+                    2. 서비스 시작
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    라인별 서비스를 시작하여
+                    <br />
+                    데이터 수집을 활성화합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3단계: 모니터링 */}
+              <div className="relative z-10 flex flex-col items-center text-center group">
+                <div className="w-16 h-16 rounded-full bg-background border-2 border-emerald-500/30 flex items-center justify-center mb-4 shadow-sm group-hover:border-emerald-500 group-hover:shadow-md transition-all">
+                  <Activity className="w-8 h-8 text-emerald-400" />
+                </div>
+                <div className="bg-card px-2">
+                  <h3 className="text-lg font-bold mb-2 text-emerald-400">
+                    3. 모니터링
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    대시보드에서 실시간 현황을
+                    <br />
+                    확인하고 알림을 받습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

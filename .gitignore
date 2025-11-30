@@ -10,6 +10,7 @@ storybook-static
 .storybook
 **/*.stories.*
 src/stories
+nul
 
 # Next.js
 .next

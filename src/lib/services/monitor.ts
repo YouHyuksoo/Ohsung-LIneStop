@@ -45,6 +45,7 @@
 import { db } from "./db";
 import { plc } from "./plc";
 import { logger } from "./logger";
+import { createNotification } from "../store/notification-store";
 
 import { Defect, MonitorStatus } from "@/lib/types";
 
@@ -102,6 +103,13 @@ class MonitorService {
       const intervalId = setInterval(() => this.processCycle(), 5000);
       this.intervalId = intervalId;
       logger.log("INFO", "Monitor", "모니터링 서비스가 시작되었습니다.");
+
+      // ⭐ 알림 생성: 서비스 시작
+      createNotification(
+        "SERVICE_START",
+        "모니터링 서비스 시작",
+        "불량 모니터링 서비스가 시작되었습니다."
+      );
     }
   }
 
@@ -135,6 +143,13 @@ class MonitorService {
         "INFO",
         "Monitor",
         `모니터링 서비스가 정지되었습니다. (sequenceId: ${this.stopSequenceId})`
+      );
+
+      // ⭐ 알림 생성: 서비스 정지
+      createNotification(
+        "SERVICE_STOP",
+        "모니터링 서비스 정지",
+        "불량 모니터링 서비스가 정지되었습니다."
       );
     }
   }
@@ -300,6 +315,11 @@ class MonitorService {
           plc.stopLine(stopMessage);
           this.recordPlcStop();
 
+          // ⭐ 알림 생성: 라인 정지
+          createNotification("LINE_STOP", "라인 정지 발생", stopMessage, {
+            counts: ruleCounts,
+          });
+
           // ⭐ 임계값 도달한 규칙의 불양 자동 해소 타이머 설정
           for (const rule of rules) {
             if (!rule.is_active) continue;
@@ -421,6 +441,11 @@ class MonitorService {
           );
           plc.stopLine(stopMessage);
           this.recordPlcStop();
+
+          // ⭐ 알림 생성: 라인 정지
+          createNotification("LINE_STOP", "라인 정지 발생", stopMessage, {
+            counts: ruleCounts,
+          });
         }
 
         // 6. 상태 메모리 업데이트 (규칙별 카운트 적용)
@@ -451,6 +476,13 @@ class MonitorService {
 
     this.lastPlcCommand = new Date();
     this.lastPlcCommandType = "RESET";
+
+    // ⭐ 알림 생성: 라인 재가동
+    createNotification(
+      "LINE_RESUME",
+      "라인 재가동",
+      `라인이 재가동되었습니다. 사유: ${reason}`
+    );
   }
 
   /**

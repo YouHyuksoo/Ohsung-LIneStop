@@ -17,7 +17,7 @@
  * - PL: 안전(Product Liability) 불량
  * - COMMON_SENSE: 상식이하 불량
  */
-export type DefectType = 'APPEARANCE' | 'FUNCTION' | 'PL' | 'COMMON_SENSE';
+export type DefectType = "APPEARANCE" | "FUNCTION" | "PL" | "COMMON_SENSE";
 
 /**
  * 불량 감지 규칙 모델
@@ -74,7 +74,7 @@ export interface MonitorStatus {
   /** 모니터링 서비스 실행 여부 */
   is_running: boolean;
   /** 라인 상태 ('RUNNING' | 'STOPPED') */
-  line_status: 'RUNNING' | 'STOPPED';
+  line_status: "RUNNING" | "STOPPED";
   /** 정지 사유 */
   stop_reason: string;
   /** 윈도우 정보 */
@@ -92,16 +92,73 @@ export interface MonitorStatus {
     /** DB 폴링 상태 */
     db_polling: boolean;
     /** DB 모드 (Mock/Real) */
-    db_mode: 'Mock' | 'Real';
+    db_mode: "Mock" | "Real";
     /** PLC 연결 상태 */
     plc_connected: boolean;
     /** PLC 모드 (Mock/Real) */
-    plc_mode: 'Mock' | 'Real';
+    plc_mode: "Mock" | "Real";
     /** 마지막 PLC 명령 전송 시간 */
     last_plc_command: string | null;
     /** 마지막 PLC 명령 내용 */
-    last_plc_command_type: 'STOP' | 'RESET' | null;
+    last_plc_command_type: "STOP" | "RESET" | null;
     /** ⭐ 마지막 DB 폴링 실행 시간 (processCycle이 실행된 시간) */
     last_polling_time: string | null;
   };
+}
+
+/**
+ * 사용자 정보
+ */
+export interface User {
+  /** 사용자 ID */
+  id: string;
+  /** 사용자 이름 */
+  username: string;
+  /** 표시 이름 */
+  displayName: string;
+  /** 역할 */
+  role: "admin" | "user";
+}
+
+/**
+ * 세션 정보
+ */
+export interface Session {
+  /** 세션 ID */
+  id: string;
+  /** 사용자 정보 */
+  user: User;
+  /** 생성 시간 */
+  createdAt: Date;
+  /** 만료 시간 */
+  expiresAt: Date;
+}
+
+/**
+ * 알림 타입
+ */
+export type NotificationType =
+  | "LINE_STOP" // 라인 정지
+  | "LINE_RESUME" // 라인 재가동
+  | "SERVICE_START" // 서비스 시작
+  | "SERVICE_STOP"; // 서비스 정지
+
+/**
+ * 알림 정보
+ */
+export interface Notification {
+  /** 알림 ID */
+  id: string;
+  /** 알림 타입 */
+  type: NotificationType;
+  /** 알림 제목 */
+  title: string;
+  /** 알림 메시지 */
+  message: string;
+  /** 생성 시간 */
+  timestamp: Date;
+  /** 읽음 여부 */
+  isRead: boolean;
+  /** 추가 데이터 */
+  data?: any;
 }

@@ -208,13 +208,6 @@ export default function DefectsPage() {
             </p>
           </div>
         </div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-        >
-          메인으로 돌아가기
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
       </header>
 
       {/* 필터 섹션 */}

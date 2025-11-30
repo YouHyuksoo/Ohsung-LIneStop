@@ -35,13 +35,6 @@ export default function HelpPage() {
               <HelpCircle className="w-10 h-10 text-[hsl(var(--primary))]" />
               사용자 가이드
             </h1>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <Home className="w-4 h-4" />
-              메인으로 돌아가기
-            </Link>
           </div>
           <p className="text-muted-foreground">
             JisungSolution 시스템 사용법 및 도움말
@@ -56,9 +49,11 @@ export default function HelpPage() {
           </h2>
           <div className="bg-card border rounded-xl p-6 shadow-sm space-y-4">
             <p className="text-foreground">
-              <strong className="text-[hsl(var(--primary))]">JisungSolution</strong>는 스마트
-              팩토리 환경에서 불량을 실시간으로 감지하고 자동으로 라인을
-              정지시키는 시스템입니다.
+              <strong className="text-[hsl(var(--primary))]">
+                JisungSolution
+              </strong>
+              는 스마트 팩토리 환경에서 불량을 실시간으로 감지하고 자동으로
+              라인을 정지시키는 시스템입니다.
             </p>
             <div className="bg-[hsl(var(--primary)/0.1)] border border-[hsl(var(--primary)/0.2)] rounded-lg p-4">
               <p className="text-sm">
@@ -405,12 +400,6 @@ export default function HelpPage() {
                 className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
               >
                 로그 확인하기
-              </Link>
-              <Link
-                href="/"
-                className="px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm"
-              >
-                메인으로 돌아가기
               </Link>
             </div>
           </div>
