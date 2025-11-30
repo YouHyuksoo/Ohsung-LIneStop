@@ -10,9 +10,17 @@
  * - 알림 읽음 처리
  * - 알림 삭제
  * - 최대 100개 유지
+ * - SSE를 통한 실시간 알림 푸시
  */
 
+import { EventEmitter } from "events";
 import { Notification, NotificationType } from "../types";
+
+/**
+ * 알림 이벤트 발생기 (SSE용)
+ */
+export const notificationEmitter = new EventEmitter();
+notificationEmitter.setMaxListeners(50); // SSE 연결 수 제한
 
 /**
  * 알림 저장소 (메모리 기반)
@@ -60,6 +68,12 @@ export function createNotification(
   }
 
   console.log(`[NotificationStore] 알림 생성: ${type} - ${title}`);
+
+  // ⭐ SSE 이벤트 발생 (실시간 푸시)
+  notificationEmitter.emit("notification", {
+    notification,
+    unreadCount: getUnreadCount(),
+  });
 
   return notification;
 }

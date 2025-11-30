@@ -8,6 +8,7 @@
  * - 로그인 후 원래 페이지로 리다이렉트
  */
 
+import { Suspense } from "react";
 import LoginForm from "@/components/LoginForm";
 import { Shield } from "lucide-react";
 
@@ -26,7 +27,9 @@ export default function LoginPage() {
 
         {/* 로그인 폼 */}
         <div className="bg-card border border-border rounded-xl p-8 shadow-lg">
-          <LoginForm />
+          <Suspense fallback={<div className="text-center">로딩 중...</div>}>
+            <LoginForm />
+          </Suspense>
         </div>
 
         {/* 푸터 */}

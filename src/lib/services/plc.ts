@@ -2,11 +2,17 @@
  * @file src/lib/services/plc.ts
  * @description
  * PLC(Programmable Logic Controller) 통신 인터페이스
+ * Mitsubishi MC Protocol (3E/4E Frame) 지원
  *
  * 주요 기능:
  * - 라인 상태 읽기 (RUNNING/STOPPED)
  * - 라인 정지 명령 전송
  * - 라인 재가동 명령 전송
+ *
+ * 단일 주소 제어 모델:
+ * - 하나의 비트 주소(예: M100)를 사용하여 제어 및 상태 확인
+ * - Read 1 / Write 1 : 정지 (STOPPED)
+ * - Read 0 / Write 0 : 가동 (RUNNING)
  *
  * Mock 모드:
  * - 실제 PLC 없이도 테스트 가능
@@ -20,19 +26,32 @@
  * @example
  * import { plc } from '@/lib/services/plc';
  *
+ * // 연결
+ * await plc.connect();
+ *
  * // 라인 상태 확인
- * const status = plc.readStatus(); // 'RUNNING' or 'STOPPED'
+ * const status = await plc.readStatus(); // 'RUNNING' or 'STOPPED'
  *
- * // 라인 정지
- * plc.stopLine('불량 임계값 초과');
+ * // 라인 정지 (Bit 1 쓰기)
+ * await plc.stopLine('불량 임계값 초과');
  *
- * // 라인 재가동
- * plc.resetLine();
+ * // 라인 재가동 (Bit 0 쓰기)
+ * await plc.resetLine();
  */
 
 import { logger } from "./logger";
 import fs from "fs";
 import path from "path";
+
+// MC Protocol 라이브러리 (CommonJS)
+let MCProtocol: any;
+try {
+  MCProtocol = require("mcprotocol");
+} catch (e) {
+  console.warn(
+    "[PLC] mcprotocol library not found. Running in Mock mode only."
+  );
+}
 
 /**
  * PLC 통신 클래스
@@ -43,8 +62,10 @@ class PLC {
   private _stopReason: string = "";
   private ip: string = "192.168.0.1";
   private port: number = 5000;
-  private address: string = "D100";
+  private address: string = "M100"; // 제어 및 상태용 단일 주소
   private settingsFile: string;
+  private client: any = null;
+  private isConnected: boolean = false;
 
   constructor() {
     this.settingsFile = path.join(process.cwd(), "settings.json");
@@ -54,7 +75,7 @@ class PLC {
       logger.log(
         "INFO",
         "PLC",
-        `Mock PLC 연결됨 (${this.ip}:${this.port}, Address: ${this.address})`
+        `Mock PLC 모드로 초기화됨 (${this.ip}:${this.port})`
       );
     }
   }
@@ -84,6 +105,42 @@ class PLC {
   }
 
   /**
+   * PLC에 연결합니다.
+   */
+  async connect(): Promise<void> {
+    if (this.mockMode) {
+      this.isConnected = true;
+      return;
+    }
+
+    if (!MCProtocol) {
+      logger.log(
+        "ERROR",
+        "PLC",
+        "mcprotocol 라이브러리가 설치되지 않았습니다."
+      );
+      return;
+    }
+
+    if (this.isConnected) return;
+
+    try {
+      this.client = new MCProtocol();
+      await this.client.initiateConnection({
+        host: this.ip,
+        port: this.port,
+        ascii: false, // Binary 모드 사용
+      });
+      this.isConnected = true;
+      logger.log("INFO", "PLC", `PLC 연결 성공 (${this.ip}:${this.port})`);
+    } catch (error) {
+      this.isConnected = false;
+      logger.log("ERROR", "PLC", `PLC 연결 실패: ${error}`);
+      // throw error; // 연결 실패는 로그만 남기고 서비스는 계속 진행
+    }
+  }
+
+  /**
    * 정지 사유를 반환합니다.
    */
   get stopReason(): string {
@@ -100,48 +157,86 @@ class PLC {
   /**
    * 라인 상태를 읽어옵니다.
    *
-   * @returns 'RUNNING' 또는 'STOPPED'
+   * @returns 'RUNNING' (0) 또는 'STOPPED' (1)
    */
-  readStatus(): "RUNNING" | "STOPPED" {
+  async readStatus(): Promise<"RUNNING" | "STOPPED"> {
     if (this.mockMode) {
       return this.isStopped ? "STOPPED" : "RUNNING";
     }
-    // TODO: 실제 PLC에서 상태 읽기 구현
-    // Modbus/TCP 또는 전용 프로토콜 사용
-    // this.ip, this.port, this.address 사용
-    return "RUNNING";
+
+    if (!this.isConnected) {
+      await this.connect();
+      if (!this.isConnected) return "RUNNING"; // 연결 실패 시 기본값
+    }
+
+    try {
+      // 단일 주소 값 읽기
+      const values = await this.client.readPLCDevices(this.address, 1);
+      const statusValue = values[0];
+
+      // 1 = 정지, 0 = 가동
+      if (statusValue === 1) {
+        return "STOPPED";
+      } else {
+        return "RUNNING";
+      }
+    } catch (error) {
+      logger.log("ERROR", "PLC", `상태 읽기 실패: ${error}`);
+      this.isConnected = false;
+      return "RUNNING";
+    }
   }
 
   /**
-   * 라인 정지 명령을 전송합니다.
+   * 라인 정지 명령을 전송합니다. (Bit 1 쓰기)
    *
    * @param reason - 정지 사유
    */
-  stopLine(reason: string): void {
+  async stopLine(reason: string): Promise<void> {
     logger.log("ERROR", "PLC", `🚨 라인 정지 명령 전송! 사유: ${reason}`);
-    this.isStopped = true;
     this._stopReason = reason;
-    // TODO: 실제 PLC에 정지 신호 전송
-    // 예: PLC 메모리 this.address에 1을 씀
+
+    if (this.mockMode) {
+      this.isStopped = true;
+      return;
+    }
+
+    if (!this.isConnected) await this.connect();
+
+    try {
+      // 해당 주소에 1 쓰기
+      await this.client.setPLCDevices(this.address, [1]);
+    } catch (error) {
+      logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
+    }
   }
 
   /**
-   * 라인 재가동 명령을 전송합니다.
+   * 라인 재가동 명령을 전송합니다. (Bit 0 쓰기)
    * 정지 상태를 해제하고 라인을 다시 시작합니다.
    */
-  resetLine(): void {
+  async resetLine(): Promise<void> {
     logger.log("INFO", "PLC", "✅ 라인 재가동 명령 전송");
-    this.isStopped = false;
     this._stopReason = "";
-    // TODO: 실제 PLC에 재가동 신호 전송
-    // 예: PLC 메모리 this.address에 0을 씀
+
+    if (this.mockMode) {
+      this.isStopped = false;
+      return;
+    }
+
+    if (!this.isConnected) await this.connect();
+
+    try {
+      // 해당 주소에 0 쓰기
+      await this.client.setPLCDevices(this.address, [0]);
+    } catch (error) {
+      logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
+    }
   }
 }
 
 /**
  * 전역 PLC 인스턴스 (싱글톤)
- * Next.js 개발 환경에서 모듈 리로드 시 인스턴스가 초기화되는 것을 방지하기 위해
- * global 객체에 인스턴스를 저장하여 재사용합니다.
  */
 const globalForPlc = global as unknown as { plc: PLC | undefined };
 

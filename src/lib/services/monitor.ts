@@ -75,6 +75,7 @@ class MonitorService {
   private defectResolveTimers: Map<string, NodeJS.Timeout> = new Map(); // ⭐ 불양 해소 타이머
   private readonly DEFECT_RESOLVE_DELAY: number = 30000; // ⭐ 30초 후 자동 해소
   private stopSequenceId: number = 0; // ⭐ Stop 호출 시마다 증가하는 ID (타이머 인증용)
+  private internalLineStatus: "RUNNING" | "STOPPED" = "RUNNING"; // ⭐ 내부 상태 추적 (통신 최소화)
 
   /**
    * 모니터링 서비스를 시작합니다.
@@ -82,7 +83,7 @@ class MonitorService {
    * 주의: 이미 실행 중이면 중복 시작을 방지합니다.
    * Hot Reload 시 이전 interval을 정리합니다.
    */
-  start(): void {
+  async start(): Promise<void> {
     if (!this.isRunning) {
       // ⭐ Hot Reload 후 남아있을 수 있는 이전 interval을 정리
       if (this.intervalId) {
@@ -98,6 +99,23 @@ class MonitorService {
       this.defectResolveTimers.clear();
 
       this.isRunning = true;
+
+      // ⭐ [초기화] 시작 시 딱 한 번 PLC 상태를 읽어 내부 상태 동기화
+      if (!db.isMockMode && !plc.isMockMode) {
+        try {
+          await plc.connect();
+          this.internalLineStatus = await plc.readStatus();
+          logger.log(
+            "INFO",
+            "Monitor",
+            `초기 PLC 상태 동기화 완료: ${this.internalLineStatus}`
+          );
+        } catch (e) {
+          logger.log("ERROR", "Monitor", `초기 PLC 상태 읽기 실패: ${e}`);
+          // 실패 시 기본값 RUNNING 유지 (보수적 접근)
+        }
+      }
+
       // 첫 사이클을 즉시 실행한 후 5초마다 반복
       this.processCycle();
       const intervalId = setInterval(() => this.processCycle(), 5000);
@@ -168,7 +186,7 @@ class MonitorService {
   getStatus(): MonitorStatus {
     return {
       is_running: this.isRunning,
-      line_status: plc.readStatus(),
+      line_status: this.internalLineStatus, // ⭐ 통신 없이 내부 상태 반환
       stop_reason: plc.stopReason,
       window_info: {
         start: null,
@@ -214,12 +232,20 @@ class MonitorService {
       // ⭐ 이 함수가 실행되면 DB 폴링이 발생한 것 = 마지막 폴링 시간 기록
       this.lastPollingTime = new Date();
 
+      // ⭐ PLC 연결 확인 (실제 모드일 때)
+      if (!db.isMockMode && !plc.isMockMode) {
+        await plc.connect();
+      }
+
+      // ⭐ [최적화] 매 사이클마다 PLC 상태를 읽지 않음 (통신 최소화)
+      // const currentPlcStatus = await plc.readStatus(); -> 제거
+
       if (db.isMockMode) {
         // ===== Mock 모드 (Oracle 프로시저와 동일한 메시지 로직) =====
         // 1. 새로운 Mock 불량 생성 (확률적)
         // ⭐ 라인이 RUNNING 상태일 때만 새로운 불량 생성 (정지 상태에서는 생성 안 함)
         // ⭐ 하지만 processCycle은 항상 실행되므로 lastPollingTime은 항상 업데이트됨
-        if (plc.readStatus() === "RUNNING") {
+        if (this.internalLineStatus === "RUNNING") {
           db.fetchRecentDefects();
         } else {
           // 라인이 정지되었더라도, 폴링 시간은 업데이트 (DB 폴링은 계속 실행 중임을 나타냄)
@@ -300,22 +326,27 @@ class MonitorService {
           }
         }
 
-        // 6. 임계값 초과한 규칙이 있으면 라인 정지
-        if (shouldStop && plc.readStatus() === "RUNNING") {
+        // 6. 라인 제어 로직 (사용자 요청 반영)
+        if (shouldStop) {
+          // ⭐ 정지 상황: 중복 전송 허용 (확실한 정지를 위해)
+          // 하지만 로그 폭주를 막기 위해 내부 상태 체크는 로깅에만 활용 가능
           logger.log(
             "WARN",
             "Monitor",
-            `[Mock Procedure] 라인 정지 명령 전송!`
+            `[Mock Procedure] 라인 정지 명령 전송! (상태: ${this.internalLineStatus})`
           );
           logger.log(
             "WARN",
             "Monitor",
             `규칙별 누적 건수: ${JSON.stringify(ruleCounts)}`
           );
-          plc.stopLine(stopMessage);
-          this.recordPlcStop();
 
-          // ⭐ 알림 생성: 라인 정지
+          await plc.stopLine(stopMessage);
+          this.recordPlcStop();
+          this.internalLineStatus = "STOPPED"; // 내부 상태 업데이트
+
+          // 알림은 중복 방지 (너무 자주 오면 곤란하므로)
+          // TODO: 알림 중복 방지 로직 필요 시 추가
           createNotification("LINE_STOP", "라인 정지 발생", stopMessage, {
             counts: ruleCounts,
           });
@@ -355,8 +386,10 @@ class MonitorService {
                 db.resolveMockDefectsByCode(rule.code);
 
                 // ⭐ 불양 해소 후 라인 자동 재시작
-                if (plc.readStatus() === "STOPPED") {
-                  plc.resetLine();
+                // 여기서도 상태 체크를 통해 중복 실행 방지 (하지만 resetLine 내부에서 체크할 수도 있음)
+                // 비동기 함수 내에서 plc.readStatus()를 다시 호출하여 최신 상태 확인
+                if (this.internalLineStatus === "STOPPED") {
+                  this.resolveStop("Auto Reset");
                   logger.log(
                     "INFO",
                     "Monitor",
@@ -377,6 +410,18 @@ class MonitorService {
               );
             }
           }
+        } else {
+          // ⭐ 정상 상황 (해제): 중복 전송 방지 (평시 통신 최소화)
+          if (this.internalLineStatus === "STOPPED") {
+            // 이전에 정지 상태였던 경우에만 해제 신호 전송
+            logger.log(
+              "INFO",
+              "Monitor",
+              "정지 조건 해소됨 -> 라인 재가동 시도"
+            );
+            await this.resolveStop("정지 조건 해소");
+          }
+          // RUNNING 상태라면 아무것도 하지 않음 (통신 0)
         }
 
         // 7. 상태 메모리 업데이트 (규칙별 카운트 적용)
@@ -431,21 +476,33 @@ class MonitorService {
           }
         }
 
-        // 5. 임계값 초과한 규칙이 있으면 라인 정지
-        if (shouldStop && plc.readStatus() === "RUNNING") {
+        // 6. 라인 제어 로직 (실제 모드)
+        if (shouldStop) {
+          // ⭐ 정지 상황: 중복 전송 허용
           logger.log("WARN", "Monitor", `[DB Procedure] 라인 정지 명령 전송!`);
           logger.log(
             "WARN",
             "Monitor",
             `규칙별 누적 건수: ${JSON.stringify(ruleCounts)}`
           );
-          plc.stopLine(stopMessage);
+          await plc.stopLine(stopMessage);
           this.recordPlcStop();
+          this.internalLineStatus = "STOPPED";
 
           // ⭐ 알림 생성: 라인 정지
           createNotification("LINE_STOP", "라인 정지 발생", stopMessage, {
             counts: ruleCounts,
           });
+        } else {
+          // ⭐ 정상 상황: 중복 전송 방지
+          if (this.internalLineStatus === "STOPPED") {
+            logger.log(
+              "INFO",
+              "Monitor",
+              "정지 조건 해소됨 -> 라인 재가동 시도"
+            );
+            await this.resolveStop("정지 조건 해소");
+          }
         }
 
         // 6. 상태 메모리 업데이트 (규칙별 카운트 적용)
@@ -470,8 +527,20 @@ class MonitorService {
    *
    * @param reason - 해제 사유
    */
-  resolveStop(reason: string): void {
-    plc.resetLine();
+  async resolveStop(reason: string): Promise<void> {
+    // ⭐ 중복 전송 방지 (이미 RUNNING이면 전송 안함)
+    if (this.internalLineStatus === "RUNNING") {
+      logger.log(
+        "INFO",
+        "Monitor",
+        `이미 라인이 가동 중입니다. (요청 사유: ${reason})`
+      );
+      return;
+    }
+
+    await plc.resetLine();
+    this.internalLineStatus = "RUNNING"; // 상태 업데이트
+
     logger.log("INFO", "Monitor", `라인이 재시작되었습니다. (사유: ${reason})`);
 
     this.lastPlcCommand = new Date();

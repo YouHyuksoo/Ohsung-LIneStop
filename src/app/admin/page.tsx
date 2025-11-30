@@ -42,6 +42,8 @@ interface DefectRule {
 
 export default function AdminPage() {
   const [isRunning, setIsRunning] = useState(false);
+  const [plcStatus, setPlcStatus] = useState<"RUNNING" | "STOPPED">("RUNNING");
+  const [plcStopReason, setPlcStopReason] = useState<string>("");
   const [rules, setRules] = useState<DefectRule[]>([]);
   const [isLoadingRules, setIsLoadingRules] = useState(true); // ⭐ 규칙 로딩 상태
   const [newRule, setNewRule] = useState({ code: "", name: "", threshold: 5 });
@@ -93,6 +95,8 @@ export default function AdminPage() {
       // last_polling_time은 서비스가 정지되어도 값이 남아있을 수 있으므로 상태 판단용으로는 부적절함
       const isActuallyRunning = res.data.system_status?.db_polling ?? false;
       setIsRunning(isActuallyRunning);
+      setPlcStatus(res.data.line_status || "RUNNING");
+      setPlcStopReason(res.data.stop_reason || "");
     } catch (e) {
       console.error(e);
     }
@@ -184,6 +188,28 @@ export default function AdminPage() {
     } catch (e) {
       showToast("서비스 제어에 실패했습니다", "error");
     }
+  };
+
+  /**
+   * PLC 강제 제어
+   */
+  const togglePlc = (action: "force_stop" | "force_reset") => {
+    const actionName = action === "force_stop" ? "강제 정지" : "강제 해제";
+
+    showConfirm(
+      "PLC 제어 확인",
+      `정말로 PLC를 ${actionName} 하시겠습니까?`,
+      async () => {
+        closeDialog(); // ⭐ 다이얼로그 먼저 닫기 (UX 개선)
+        try {
+          await axios.post("/api/admin/control", { action });
+          await fetchStatus();
+          showToast(`PLC ${actionName} 명령을 전송했습니다`, "success");
+        } catch (e) {
+          showToast(`PLC ${actionName} 실패`, "error");
+        }
+      }
+    );
   };
 
   /**
@@ -336,7 +362,7 @@ export default function AdminPage() {
               <button
                 onClick={() => toggleService("start")}
                 disabled={isRunning || isLoadingRules} // ⭐ 규칙 로딩 중이면 비활성화
-                className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Play className="w-4 h-4" />{" "}
                 {isLoadingRules ? "로딩 중..." : "시작"}
@@ -344,9 +370,51 @@ export default function AdminPage() {
               <button
                 onClick={() => toggleService("stop")}
                 disabled={!isRunning}
-                className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Square className="w-4 h-4 fill-current" /> 정지
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* PLC 제어 섹션 */}
+        <section className="mb-12 bg-card border rounded-xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">PLC 제어</h2>
+          <div className="flex items-center gap-6">
+            {/* PLC 상태 표시 */}
+            <div className="flex items-center gap-3">
+              <div
+                className={cn(
+                  "w-4 h-4 rounded-full",
+                  plcStatus === "RUNNING"
+                    ? "bg-green-500"
+                    : "bg-red-500 animate-pulse"
+                )}
+              />
+              <span className="text-lg font-medium">
+                {plcStatus === "RUNNING" ? "라인 가동 중" : "라인 정지됨"}
+              </span>
+              {plcStopReason && (
+                <span className="text-sm text-muted-foreground bg-secondary px-2 py-1 rounded">
+                  사유: {plcStopReason}
+                </span>
+              )}
+            </div>
+
+            {/* PLC 제어 버튼 */}
+            <div className="flex gap-2 ml-auto">
+              <button
+                onClick={() => togglePlc("force_reset")}
+                className="flex items-center gap-2 px-6 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Play className="w-4 h-4" /> 강제 해제
+              </button>
+              <button
+                onClick={() => togglePlc("force_stop")}
+                className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Square className="w-4 h-4 fill-current" /> 강제 정지
               </button>
             </div>
           </div>
@@ -358,7 +426,7 @@ export default function AdminPage() {
             <h2 className="text-xl font-semibold">불량 모니터링 규칙</h2>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors"
             >
               <Plus className="w-4 h-4" /> 규칙 추가
             </button>

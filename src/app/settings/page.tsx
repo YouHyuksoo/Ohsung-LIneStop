@@ -321,7 +321,7 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      어드레스
+                      제어 주소 (Bit)
                     </label>
                     <input
                       type="text"
@@ -337,7 +337,7 @@ export default function SettingsPage() {
                         })
                       }
                       className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
-                      placeholder="D100"
+                      placeholder="M100"
                     />
                   </div>
                 </div>

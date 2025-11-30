@@ -1,44 +1,76 @@
-/**
- * @file src/app/api/defects/route.ts
- * @description
- * GET /api/defects - 불량 이력 조회 API
- *
- * Mock 모드: Mock DB에서 생성된 불량 반환
- * 실제 모드: Oracle DB (ICOM_RECIEVE_DATA_NG)에서 불량 조회
- *
- * 쿼리 파라미터:
- * - limit: 반환할 불량 개수 (기본: 1000)
- * - offset: 시작 위치 (기본: 0)
- *
- * Response:
- * Defect[] - 불량 이력 배열
- */
+import { NextRequest, NextResponse } from "next/server";
+import { startOfDay, endOfDay, parseISO, isValid } from "date-fns";
+import { db } from "@/lib/services/db";
+import { logger } from "@/lib/services/logger";
 
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/services/db';
-import { logger } from '@/lib/services/logger';
+interface Defect {
+  id: string;
+  code: string;
+  name: string;
+  timestamp: string;
+  resolved: boolean;
+}
 
-export async function GET(request: any) {
+export async function GET(request: NextRequest) {
   try {
-    let defects;
+    const { searchParams } = new URL(request.url);
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+    const code = searchParams.get("code");
+
+    let defects: Defect[];
 
     // Mock 모드 확인
     if (db.isMockMode) {
       // Mock 모드: 메모리에 저장된 Mock 불량 반환
       defects = db.mockDefects;
-      logger.log('INFO', 'API', `Mock 불량 ${defects.length}개 반환`);
+      logger.log("INFO", "API", `Mock 모드에서 불량 ${defects.length}개 조회`);
     } else {
       // 실제 모드: Oracle DB에서 비동기로 조회
       defects = await db.getAllDefectsAsync();
-      logger.log('INFO', 'API', `Oracle DB에서 불량 ${defects.length}개 조회`);
+      logger.log("INFO", "API", `Oracle DB에서 불량 ${defects.length}개 조회`);
     }
 
-    return NextResponse.json(defects);
+    let filteredDefects = [...defects];
+
+    // 1. 날짜 필터링
+    if (startDateStr && endDateStr) {
+      const start = startOfDay(parseISO(startDateStr));
+      const end = endOfDay(parseISO(endDateStr));
+
+      if (isValid(start) && isValid(end)) {
+        filteredDefects = filteredDefects.filter((defect) => {
+          const defectDate = new Date(defect.timestamp);
+          return defectDate >= start && defectDate <= end;
+        });
+      }
+    }
+
+    // 2. 불량 코드 필터링
+    if (code) {
+      filteredDefects = filteredDefects.filter(
+        (defect) => defect.code === code
+      );
+    }
+
+    logger.log(
+      "INFO",
+      "API",
+      `필터링 후 ${
+        filteredDefects.length
+      }개 데이터 반환. 조건: ${JSON.stringify({
+        startDate: startDateStr,
+        endDate: endDateStr,
+        code,
+      })}`
+    );
+
+    return NextResponse.json(filteredDefects);
   } catch (error: any) {
-    logger.log('ERROR', 'API', `불량 조회 실패: ${error.message}`);
-    console.error('[API] Failed to fetch defects:', error);
+    logger.log("ERROR", "API", `불량 조회 실패: ${error.message}`);
+    console.error("[API] Failed to fetch defects:", error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch defects' },
+      { error: error.message || "Failed to fetch defects" },
       { status: 500 }
     );
   }

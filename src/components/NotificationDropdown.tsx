@@ -32,29 +32,35 @@ export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // 알림 조회
-  const fetchNotifications = async () => {
-    try {
-      const response = await axios.get("/api/notifications");
-      setNotifications(response.data.notifications);
-      setUnreadCount(response.data.unreadCount);
-    } catch (error) {
-      console.error("알림 조회 실패:", error);
-    }
-  };
-
-  // 주기적으로 알림 조회 (5초마다)
+  // ⭐ SSE를 통한 실시간 알림 수신
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
-    return () => clearInterval(interval);
+    const eventSource = new EventSource("/api/notifications/stream");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount);
+      } catch (error) {
+        console.error("SSE 데이터 파싱 실패:", error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("SSE 연결 오류:", error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   // 알림 읽음 처리
   const markAsRead = async (notificationId: string) => {
     try {
       await axios.post("/api/notifications", { notificationId });
-      fetchNotifications();
+      // SSE가 자동으로 업데이트하므로 fetchNotifications() 불필요
     } catch (error) {
       console.error("알림 읽음 처리 실패:", error);
     }
@@ -64,7 +70,7 @@ export default function NotificationDropdown() {
   const markAllAsRead = async () => {
     try {
       await axios.post("/api/notifications", {});
-      fetchNotifications();
+      // SSE가 자동으로 업데이트하므로 fetchNotifications() 불필요
     } catch (error) {
       console.error("모든 알림 읽음 처리 실패:", error);
     }
@@ -74,7 +80,7 @@ export default function NotificationDropdown() {
   const deleteNotification = async (notificationId: string) => {
     try {
       await axios.delete(`/api/notifications?id=${notificationId}`);
-      fetchNotifications();
+      // SSE가 자동으로 업데이트하므로 fetchNotifications() 불필요
     } catch (error) {
       console.error("알림 삭제 실패:", error);
     }

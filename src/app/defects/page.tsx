@@ -60,17 +60,29 @@ export default function DefectsPage() {
   /**
    * 불량 이력 조회
    */
-  const fetchDefects = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get("/api/defects");
-      setDefects(res.data);
-    } catch (error) {
-      console.error("Failed to fetch defects", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchDefects = useCallback(
+    async (
+      params: { startDate?: string; endDate?: string; code?: string } = {}
+    ) => {
+      setLoading(true);
+      try {
+        const res = await axios.get("/api/defects", {
+          params: {
+            startDate: params.startDate || undefined,
+            endDate: params.endDate || undefined,
+            code: params.code !== "all" ? params.code : undefined,
+          },
+        });
+        setDefects(res.data);
+      } catch (error) {
+        console.error("Failed to fetch defects", error);
+        setDefects([]); // 에러 발생 시 데이터 비우기
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   /**
    * 컴포넌트 마운트 시 데이터 조회
@@ -83,24 +95,8 @@ export default function DefectsPage() {
    * 필터링된 데이터
    */
   const filteredDefects = useMemo(() => {
-    let filtered = [...defects];
-
-    // 날짜 필터
-    if (startDate && endDate) {
-      const start = startOfDay(new Date(startDate));
-      const end = endOfDay(new Date(endDate));
-      filtered = filtered.filter((d) =>
-        isWithinInterval(new Date(d.timestamp), { start, end })
-      );
-    }
-
-    // 코드 필터
-    if (selectedCode !== "all") {
-      filtered = filtered.filter((d) => d.code === selectedCode);
-    }
-
-    return filtered;
-  }, [defects, startDate, endDate, selectedCode]);
+    return defects;
+  }, [defects]);
 
   /**
    * 페이지네이션된 데이터
@@ -169,7 +165,11 @@ export default function DefectsPage() {
     setEndDate(endDateInput);
     setSelectedCode(selectedCodeInput);
     setCurrentPage(1);
-    fetchDefects(); // 최신 데이터 다시 조회
+    fetchDefects({
+      startDate: startDateInput,
+      endDate: endDateInput,
+      code: selectedCodeInput,
+    });
   };
 
   /**
@@ -183,6 +183,7 @@ export default function DefectsPage() {
     setEndDate("");
     setSelectedCode("all");
     setCurrentPage(1);
+    fetchDefects(); // 필터 초기화 후 전체 데이터 다시 조회
   };
 
   if (loading) {

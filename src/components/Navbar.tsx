@@ -48,7 +48,7 @@ export default function Navbar() {
             {/* 모니터링 바로가기 */}
             <Link
               href="/monitor"
-              className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium"
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-lg transition-colors font-medium"
             >
               <Activity className="w-4 h-4" />
               <span>모니터링</span>
