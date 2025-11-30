@@ -243,7 +243,7 @@ export default function SettingsPage() {
                   <button
                     onClick={saveSettings}
                     disabled={saving}
-                    className="flex items-center gap-2 px-6 py-2 bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.8)] text-foreground rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-6 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Save className="w-4 h-4" />
                     {saving ? "저장 중..." : "저장"}
@@ -346,11 +346,11 @@ export default function SettingsPage() {
                   <button
                     onClick={testPLCConnection}
                     disabled={testingPLC}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.8)] text-[hsl(var(--primary-foreground))] rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/10 text-orange-500 border border-orange-500/20 hover:bg-orange-500/20 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {testingPLC ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-[hsl(var(--primary-foreground))] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                         테스트 중...
                       </>
                     ) : (
@@ -527,11 +527,11 @@ export default function SettingsPage() {
                   <button
                     onClick={testDBConnection}
                     disabled={testingDB}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent)/0.8)] text-[hsl(var(--accent-foreground))] rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-cyan-500/10 text-cyan-500 border border-cyan-500/20 hover:bg-cyan-500/20 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {testingDB ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-[hsl(var(--accent-foreground))] border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
                         테스트 중...
                       </>
                     ) : (

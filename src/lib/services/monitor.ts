@@ -76,6 +76,37 @@ class MonitorService {
   private readonly DEFECT_RESOLVE_DELAY: number = 30000; // ⭐ 30초 후 자동 해소
   private stopSequenceId: number = 0; // ⭐ Stop 호출 시마다 증가하는 ID (타이머 인증용)
   private internalLineStatus: "RUNNING" | "STOPPED" = "RUNNING"; // ⭐ 내부 상태 추적 (통신 최소화)
+  private pollingInterval: number = 30000; // ⭐ DB 폴링 주기 (기본 30초)
+  private settingsFile: string = "";
+
+  constructor() {
+    this.settingsFile = path.join(process.cwd(), "settings.json");
+    this.loadSettings();
+  }
+
+  /**
+   * settings.json에서 폴링 주기 로드
+   */
+  private loadSettings(): void {
+    try {
+      if (fs.existsSync(this.settingsFile)) {
+        const data = fs.readFileSync(this.settingsFile, "utf-8");
+        const settings = JSON.parse(data);
+
+        if (settings.polling?.interval !== undefined) {
+          // 설정값은 초 단위, 내부적으로는 밀리초 사용
+          this.pollingInterval = settings.polling.interval * 1000;
+          logger.log(
+            "INFO",
+            "Monitor",
+            `폴링 주기 설정: ${settings.polling.interval}초`
+          );
+        }
+      }
+    } catch (error) {
+      logger.log("ERROR", "Monitor", `설정 로드 실패: ${error}`);
+    }
+  }
 
   /**
    * 모니터링 서비스를 시작합니다.
@@ -116,10 +147,18 @@ class MonitorService {
         }
       }
 
-      // 첫 사이클을 즉시 실행한 후 5초마다 반복
+      // 첫 사이클을 즉시 실행한 후 설정된 주기마다 반복
       this.processCycle();
-      const intervalId = setInterval(() => this.processCycle(), 5000);
+      const intervalId = setInterval(
+        () => this.processCycle(),
+        this.pollingInterval
+      );
       this.intervalId = intervalId;
+      logger.log(
+        "INFO",
+        "Monitor",
+        `폴링 주기: ${this.pollingInterval / 1000}초`
+      );
       logger.log("INFO", "Monitor", "모니터링 서비스가 시작되었습니다.");
 
       // ⭐ 알림 생성: 서비스 시작

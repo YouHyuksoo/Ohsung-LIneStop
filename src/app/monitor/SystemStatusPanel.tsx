@@ -34,8 +34,8 @@ const StatusItem = ({
   <div className="flex items-center gap-2">
     {icon}
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="text-sm font-semibold">{children}</div>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="text-lg font-semibold">{children}</div>
     </div>
   </div>
 );
@@ -54,7 +54,7 @@ export default function SystemStatusPanel({
           "linear-gradient(to right, rgba(30, 58, 138, 0.4), rgba(30, 41, 89, 0.3), rgba(51, 65, 85, 0.2))",
       }}
     >
-      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+      <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2">
         <Server className="w-5 h-5 text-purple-400" />
         시스템 상태
       </h3>

@@ -1,10 +1,10 @@
 {
   "polling": {
-    "interval": 10
+    "interval": 30
   },
   "mock": {
-    "plc": true,
-    "db": true,
+    "plc": false,
+    "db": false,
     "db_defect_probability": 0.5
   },
   "window": {

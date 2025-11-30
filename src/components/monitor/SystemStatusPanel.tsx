@@ -53,11 +53,11 @@ const StatusItem = ({
   label: string;
   children: React.ReactNode;
 }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex items-center gap-3">
     {icon}
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="text-sm font-semibold">{children}</div>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="text-lg font-semibold">{children}</div>
     </div>
   </div>
 );
@@ -77,12 +77,12 @@ export default function SystemStatusPanel({
       }}
     >
       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-        <Server className="w-5 h-5 text-purple-400" />
+        <Server className="w-6 h-6 text-purple-400" />
         시스템 상태
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatusItem
-          icon={<Database className="w-5 h-5 text-blue-400" />}
+          icon={<Database className="w-6 h-6 text-blue-400" />}
           label="DB 폴링"
         >
           <p>
@@ -96,14 +96,14 @@ export default function SystemStatusPanel({
         </StatusItem>
 
         <StatusItem
-          icon={<Database className="w-5 h-5 text-cyan-400" />}
+          icon={<Database className="w-6 h-6 text-cyan-400" />}
           label="DB 모드"
         >
           <p>{systemStatus.db_mode}</p>
         </StatusItem>
 
         <StatusItem
-          icon={<Radio className="w-5 h-5 text-green-400" />}
+          icon={<Radio className="w-6 h-6 text-green-400" />}
           label="PLC 연결"
         >
           <p className="flex items-center gap-1">
@@ -122,14 +122,14 @@ export default function SystemStatusPanel({
         </StatusItem>
 
         <StatusItem
-          icon={<Radio className="w-5 h-5 text-yellow-400" />}
+          icon={<Radio className="w-6 h-6 text-yellow-400" />}
           label="PLC 모드"
         >
           <p>{systemStatus.plc_mode}</p>
         </StatusItem>
 
         <StatusItem
-          icon={<Clock className="w-5 h-5 text-orange-400" />}
+          icon={<Clock className="w-6 h-6 text-orange-400" />}
           label="마지막 명령"
         >
           <p>
