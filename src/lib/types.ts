@@ -85,6 +85,8 @@ export interface MonitorStatus {
   current_defects: Defect[];
   /** 임계값 초과된 타입 목록 (라인 정지 원인인 타입들) */
   violated_types: DefectType[];
+  /** DB 폴링 주기 (초) */
+  polling_interval?: number;
   /** 활성화된 규칙 목록 */
   rules?: DefectRule[];
   /** 시스템 상태 (새로 추가됨) */

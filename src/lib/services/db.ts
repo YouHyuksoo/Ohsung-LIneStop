@@ -149,11 +149,22 @@ class Database {
     }
 
     try {
-      const connection = await oracledb.getConnection({
+      // ⭐ 3초 타임아웃 적용
+      const connectPromise = oracledb.getConnection({
         user: this.dbConfig.user,
         password: this.dbConfig.password,
         connectionString: `${this.dbConfig.host}:${this.dbConfig.port}/${this.dbConfig.service}`,
       });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error("DB Connection timed out (3s)")),
+          3000
+        );
+      });
+
+      const connection = await Promise.race([connectPromise, timeoutPromise]);
+
       logger.log("INFO", "DB", "Oracle DB 연결 성공");
       return connection;
     } catch (error) {
@@ -365,6 +376,14 @@ class Database {
   }
 
   /**
+   * ⭐ NEW: 설정 파일을 다시 로드하여 메모리의 싱글톤 인스턴스를 업데이트합니다.
+   * 설정 변경 후 즉시 반영하기 위해 사용합니다.
+   */
+  reloadSettings(): void {
+    this.loadSettings();
+  }
+
+  /**
    * JSON 파일에서 규칙을 로드합니다.
    */
   private loadRules(): void {
@@ -541,9 +560,144 @@ class Database {
   }
 
   /**
-   * 불량을 해결 처리합니다.
+   * 불양을 해결 처리합니다.
    *
-   * @param defectIds - 해결할 불량 ID 배열
+   * Mock 모드: 메모리에서 resolved 속성 업데이트
+   * 실제 모드: Oracle DB에서 NG_RELEASE_YN = 'Y' 업데이트
+   *
+   * @param defectIds - 해결할 불양 ID 배열 (ROWID)
+   * @param reason - 해결 사유
+   * @returns 성공 여부
+   */
+  async resolveDefectsAsync(
+    defectIds: string[],
+    reason: string
+  ): Promise<boolean> {
+    if (defectIds.length === 0) {
+      logger.log("WARN", "DB", "해결할 불양 ID가 없습니다.");
+      return false;
+    }
+
+    if (this.mockMode) {
+      // ⭐ Mock 모드: 메모리에서 resolved 속성 업데이트
+      for (const id of defectIds) {
+        const defect = this._mockDefects.find((d) => d.id === id);
+        if (defect) {
+          defect.resolved = true;
+        }
+      }
+
+      logger.log(
+        "INFO",
+        "DB",
+        `[Mock] 불양 ${defectIds.length}개 해결 처리됨 (사유: ${reason})`
+      );
+
+      return true;
+    } else {
+      // ⭐ 실제 모드: Oracle DB에서 업데이트
+      return await this.updateDefectsInOracle(defectIds, reason);
+    }
+  }
+
+  /**
+   * Oracle DB에서 ICOM_RECIEVE_DATA_NG 테이블의 NG_RELEASE_YN을 'Y'로 업데이트합니다.
+   *
+   * 동작:
+   * ICOM_RECIEVE_DATA_NG의 NG_RELEASE_YN = 'Y' 업데이트 (이미 존재하는 테이블만 사용)
+   *
+   * 쿼리:
+   * UPDATE ICOM_RECIEVE_DATA_NG
+   * SET NG_RELEASE_YN = 'Y',
+   *     RELEASE_TIME = SYSDATE
+   * WHERE ROWID IN (...)
+   *
+   * @param defectIds - 불양의 ROWID 배열
+   * @param reason - 조치 사유 (로그용)
+   * @returns 업데이트 성공 여부
+   */
+  private async updateDefectsInOracle(
+    defectIds: string[],
+    reason: string
+  ): Promise<boolean> {
+    let connection = null;
+    try {
+      connection = await this.connectToOracle();
+
+      // ROWID를 IN 절에 맞도록 변환
+      // ROWID는 문자열이므로 따옴표로 감싸야 함
+      const rowidList = defectIds
+        .map((id) => `'${id.replace(/'/g, "''")}'`)
+        .join(",");
+
+      // ⭐ 불양 해결 처리: NG_RELEASE_YN = 'Y' 업데이트
+      const updateQuery = `
+        UPDATE "INFINITY21_PIMMES"."ICOM_RECIEVE_DATA_NG"
+        SET NG_RELEASE_YN = 'Y',
+            RELEASE_TIME = SYSDATE
+        WHERE ROWID IN (${rowidList})
+      `;
+
+      const updateResult = await connection.execute(updateQuery);
+      const rowsAffected = updateResult.rowsAffected || 0;
+
+      if (rowsAffected === 0) {
+        logger.log(
+          "WARN",
+          "DB",
+          `[Oracle] 업데이트할 불양을 찾을 수 없습니다. (요청한 ID: ${defectIds.length}개)`
+        );
+        return false;
+      }
+
+      // 커밋
+      await connection.commit();
+
+      logger.log(
+        "INFO",
+        "DB",
+        `[Oracle] 불양 ${rowsAffected}개 해결 처리 완료 (사유: ${reason})`
+      );
+
+      return true;
+    } catch (error) {
+      logger.log(
+        "ERROR",
+        "DB",
+        `[Oracle] 불양 해결 처리 실패: ${error}`
+      );
+
+      // 롤백
+      if (connection) {
+        try {
+          await connection.rollback();
+          logger.log("INFO", "DB", `[Oracle] 롤백 완료`);
+        } catch (rollbackError) {
+          logger.log(
+            "ERROR",
+            "DB",
+            `[Oracle] 롤백 중 오류 발생: ${rollbackError}`
+          );
+        }
+      }
+
+      return false;
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
+        } catch (error) {
+          console.error("[DB] Failed to close connection:", error);
+        }
+      }
+    }
+  }
+
+  /**
+   * 불양을 해결 처리합니다. (동기 버전 - 테스트용)
+   *
+   * @deprecated 비동기 버전 resolveDefectsAsync()를 사용하세요.
+   * @param defectIds - 해결할 불양 ID 배열
    * @param reason - 해결 사유
    */
   resolveDefects(defectIds: string[], reason: string): void {
@@ -552,7 +706,15 @@ class Database {
       "DB",
       `Resolving defects ${defectIds.join(", ")} with reason: ${reason}`
     );
-    // TODO: 실제 DB 업데이트 (TRANSFER_FLAG = 'Y' 설정)
+    // Mock 모드일 때만 처리 (실제 모드는 비동기 메서드 사용)
+    if (this.mockMode) {
+      for (const id of defectIds) {
+        const defect = this._mockDefects.find((d) => d.id === id);
+        if (defect) {
+          defect.resolved = true;
+        }
+      }
+    }
   }
 
   /**

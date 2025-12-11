@@ -1,6 +1,9 @@
 /**
  * @file src/app/api/settings/route.ts
  * @description 설정 읽기/쓰기 API
+ *
+ * ⭐ UPDATE: POST 요청 시 싱글톤 인스턴스 재로드
+ * - DB와 PLC 모드 설정 변경 시 메모리의 싱글톤 인스턴스를 즉시 업데이트합니다.
  */
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
@@ -8,6 +11,9 @@ import path from "path";
 import { getSettings } from "@/lib/settings";
 import { validateSession } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { db } from "@/lib/services/db";
+import { plc } from "@/lib/services/plc";
+import { logger } from "@/lib/services/logger";
 
 const settingsFilePath = path.join(process.cwd(), "settings.json");
 
@@ -47,7 +53,8 @@ export async function GET() {
 
 /**
  * POST /api/settings
- * 새로운 설정을 저장합니다.
+ * 새로운 설정을 저장하고 싱글톤 인스턴스를 재로드합니다.
+ * ⭐ NEW: 설정 변경 후 메모리의 db, plc 인스턴스를 즉시 업데이트합니다.
  */
 export async function POST(request: Request) {
   try {
@@ -60,9 +67,20 @@ export async function POST(request: Request) {
     }
 
     const newSettings = await request.json();
+
+    // 설정 파일에 저장
     await fs.writeFile(settingsFilePath, JSON.stringify(newSettings, null, 2));
+
+    // ⭐ NEW: DB와 PLC의 싱글톤 인스턴스에 설정 파일 재로드 (메모리 업데이트)
+    db.reloadSettings();
+    plc.reloadSettings();
+
+    // Logger에 기록
+    logger.log("INFO", "API", "설정이 저장되고 싱글톤 인스턴스가 재로드되었습니다.");
+
     return NextResponse.json({ message: "설정이 저장되었습니다." });
   } catch (error: any) {
+    logger.log("ERROR", "API", `설정 저장 실패: ${error.message}`);
     return NextResponse.json(
       { message: `설정 저장 실패: ${error.message}` },
       { status: 500 }

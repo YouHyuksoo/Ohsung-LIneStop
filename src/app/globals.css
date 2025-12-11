@@ -211,3 +211,27 @@
     border-width: 1px !important;
   }
 }
+
+/**
+ * 시스템 상태 패널 블링킹 애니메이션
+ * DB 폴링이 정지되었거나 PLC 연결이 끊겼을 때 배경이 붉은 계열로 블링킹됩니다.
+ *
+ * 사용 방법:
+ * - animate-blinkRed 클래스를 적용하면 자동으로 애니메이션이 재생됩니다.
+ * - 애니메이션은 1초 주기로 반복되며, 부드러운 투명도 전환을 제공합니다.
+ */
+@keyframes blinkRed {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@layer utilities {
+  /* 붉은 배경 블링킹 애니메이션 */
+  .animate-blinkRed {
+    animation: blinkRed 1s ease-in-out infinite;
+  }
+}

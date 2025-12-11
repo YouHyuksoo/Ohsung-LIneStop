@@ -105,6 +105,14 @@ class PLC {
   }
 
   /**
+   * ⭐ NEW: 설정 파일을 다시 로드하여 메모리의 싱글톤 인스턴스를 업데이트합니다.
+   * 설정 변경 후 즉시 반영하기 위해 사용합니다.
+   */
+  reloadSettings(): void {
+    this.loadSettings();
+  }
+
+  /**
    * PLC에 연결합니다.
    */
   async connect(): Promise<void> {
@@ -126,11 +134,20 @@ class PLC {
 
     try {
       this.client = new MCProtocol();
-      await this.client.initiateConnection({
+
+      // ⭐ 2초 타임아웃 적용
+      const connectPromise = this.client.initiateConnection({
         host: this.ip,
         port: this.port,
         ascii: false, // Binary 모드 사용
       });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Connection timed out (2s)")), 2000);
+      });
+
+      await Promise.race([connectPromise, timeoutPromise]);
+
       this.isConnected = true;
       logger.log("INFO", "PLC", `PLC 연결 성공 (${this.ip}:${this.port})`);
     } catch (error) {
@@ -152,6 +169,13 @@ class PLC {
    */
   get isMockMode(): boolean {
     return this.mockMode;
+  }
+
+  /**
+   * 현재 연결 상태를 반환합니다.
+   */
+  get connected(): boolean {
+    return this.isConnected;
   }
 
   /**

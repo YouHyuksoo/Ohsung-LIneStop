@@ -3,8 +3,8 @@
     "interval": 30
   },
   "mock": {
-    "plc": false,
-    "db": false,
+    "plc": true,
+    "db": true,
     "db_defect_probability": 0.5
   },
   "window": {

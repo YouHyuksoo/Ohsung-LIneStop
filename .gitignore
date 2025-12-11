@@ -18,3 +18,6 @@ nul
 
 # Logs
 logs.db
+
+.gemini/
+gha-creds-*.json

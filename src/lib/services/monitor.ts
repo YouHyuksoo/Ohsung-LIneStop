@@ -46,6 +46,8 @@ import { db } from "./db";
 import { plc } from "./plc";
 import { logger } from "./logger";
 import { createNotification } from "../store/notification-store";
+import fs from "fs";
+import path from "path";
 
 import { Defect, MonitorStatus } from "@/lib/types";
 
@@ -235,10 +237,13 @@ class MonitorService {
       current_counts: this.currentCounts,
       current_defects: this.currentDefects,
       violated_types: [],
+      polling_interval: this.pollingInterval / 1000, // ⭐ 밀리초를 초로 변환
       system_status: {
         db_polling: this.isRunning,
         db_mode: db.isMockMode ? "Mock" : "Real",
-        plc_connected: true,
+        // ⭐ Mock 모드에서는 항상 PLC 연결 상태를 true로 반환 (시뮬레이션 모드이므로 연결 필요 없음)
+        // 실제 모드에서는 실제 PLC 연결 상태를 반영
+        plc_connected: plc.isMockMode ? true : plc.connected,
         plc_mode: plc.isMockMode ? "Mock" : "Real",
         last_plc_command: this.lastPlcCommand?.toISOString() ?? null,
         last_plc_command_type: this.lastPlcCommandType,
@@ -322,7 +327,6 @@ class MonitorService {
 
           // 5. 프로시저 메시지 생성 (프로시저와 동일한 로직)
           let procMessage = "";
-          let procResultCode = "PASS";
 
           if (count > 0) {
             // 첫 번째 불량 시간 (프로시저의 V_SESSION_START)
@@ -334,7 +338,6 @@ class MonitorService {
 
             // 임계값 체크
             if (count >= rule.threshold) {
-              procResultCode = "STOP";
               procMessage = `라인정지: ${rule.code} 불량 ${rule.threshold}건 발생 (${timeStr} 부터)`;
               if (!shouldStop) {
                 shouldStop = true;
@@ -395,17 +398,22 @@ class MonitorService {
             if (!rule.is_active) continue;
             const ruleDefects = allDefects.filter((d) => d.code === rule.code);
             if (ruleDefects.length >= rule.threshold) {
-              // 이 규칙에 대한 타이머가 이미 있으면 취소
+              // ⭐ 이 규칙에 대한 타이머가 이미 있으면 새로 만들지 말 것 (기존 타이머가 실행될 기회를 줌)
+              // 타이머는 첫 임계값 도달 시 한 번만 설정되고, 30초 후 자동 해소될 때까지 유지됨
               if (this.defectResolveTimers.has(rule.code)) {
-                const oldTimer = this.defectResolveTimers.get(rule.code);
-                if (oldTimer) clearTimeout(oldTimer);
+                logger.log(
+                  "DEBUG",
+                  "Monitor",
+                  `규칙 '${rule.name}' 자동 해소 타이머 이미 실행 중... (${this.DEFECT_RESOLVE_DELAY / 1000}초 대기)`
+                );
+                continue; // 기존 타이머 유지
               }
 
               // ⭐ 타이머 생성 시점의 stopSequenceId 캡처
               const capturedSequenceId = this.stopSequenceId;
 
               // 30초 후 자동으로 불양 해소
-              const timer = setTimeout(() => {
+              const timer = setTimeout(async () => {
                 // ⭐ 타이머 콜백 실행 시 여러 검증:
                 // 1. 현재 stopSequenceId가 생성 시점과 다르면 이 타이머는 invalidated 상태
                 // 2. isRunning 플래그 재확인 (double-check)
@@ -422,13 +430,35 @@ class MonitorService {
                   return;
                 }
 
+                logger.log(
+                  "INFO",
+                  "Monitor",
+                  `30초 경과! 규칙 '${rule.name}' (${rule.code}) 불양 자동 해소 실행`
+                );
+
                 db.resolveMockDefectsByCode(rule.code);
+                logger.log(
+                  "INFO",
+                  "Monitor",
+                  `불양 해소됨: ${rule.code}`
+                );
+
+                // ⭐ 불양 해소 후 상태 메모리 즉시 업데이트 (화면 반영 지연 제거)
+                const allDefects = await db.getAllDefectsAsync();
+                const ruleCounts: Record<string, number> = {};
+                for (const r of db.getRules()) {
+                  if (!r.is_active) continue;
+                  const ruleDefects = allDefects.filter((d) => d.code === r.code);
+                  ruleCounts[r.code] = ruleDefects.length;
+                }
+                this.currentDefects = allDefects;
+                this.currentCounts = ruleCounts;
 
                 // ⭐ 불양 해소 후 라인 자동 재시작
                 // 여기서도 상태 체크를 통해 중복 실행 방지 (하지만 resetLine 내부에서 체크할 수도 있음)
                 // 비동기 함수 내에서 plc.readStatus()를 다시 호출하여 최신 상태 확인
                 if (this.internalLineStatus === "STOPPED") {
-                  this.resolveStop("Auto Reset");
+                  await this.resolveStop("Auto Reset");
                   logger.log(
                     "INFO",
                     "Monitor",

@@ -20,11 +20,12 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Eye } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
 import BackButton from "@/components/BackButton";
 import SystemStatusPanel from "@/components/monitor/SystemStatusPanel";
 import LineStatusAlert from "@/components/monitor/LineStatusAlert";
 import RuleMonitorCard from "@/components/monitor/RuleMonitorCard";
+import DefectResolutionModal from "@/components/monitor/DefectResolutionModal";
 
 // 타입 정의
 interface Defect {
@@ -74,6 +75,7 @@ export default function MonitorPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [rules, setRules] = useState<Rule[]>([]); // ⭐ rules를 별도 state로 분리
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false); // ⭐ 조치이력등록 모달 상태
 
   /**
    * 규칙 목록 조회 (최초 1회만)
@@ -136,6 +138,16 @@ export default function MonitorPage() {
 
   return (
     <div className="min-h-screen p-8 bg-background">
+      {/* ⭐ 조치이력등록 모달 */}
+      <DefectResolutionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onResolved={() => {
+          // 모달 닫은 후 상태 새로고침
+          fetchStatus();
+        }}
+      />
+
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl border border-emerald-500/30">
@@ -143,7 +155,17 @@ export default function MonitorPage() {
           </div>
           <h1 className="text-3xl font-bold">실시간 불량 모니터링</h1>
         </div>
-        <BackButton toHome label="메인으로 돌아가기" />
+        <div className="flex items-center gap-3">
+          {/* ⭐ 조치이력등록 버튼 */}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition-colors font-medium"
+          >
+            <FileText className="w-5 h-5" />
+            조치이력등록
+          </button>
+          <BackButton toHome label="메인으로 돌아가기" />
+        </div>
       </header>
 
       <SystemStatusPanel

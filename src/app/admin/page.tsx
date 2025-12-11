@@ -5,9 +5,10 @@
  *
  * 주요 기능:
  * 1. 모니터링 서비스 제어 (시작/정지)
- * 2. 불량 규칙 관리 (조회/추가/삭제)
- * 3. 규칙 테이블 표시
- * 4. 규칙 추가 모달
+ * 2. DB와 PLC 운영 모드 표시 (⭐ NEW: Mock/Real 모드 표시)
+ * 3. 불량 규칙 관리 (조회/추가/삭제)
+ * 4. 규칙 테이블 표시
+ * 5. 규칙 추가 모달
  *
  * 규칙 관리:
  * - 불량 코드, 이름, 임계값 설정
@@ -18,11 +19,14 @@
  * - Start: 모니터링 서비스 시작
  * - Stop: 모니터링 서비스 정지
  * - 실시간 상태 표시 (초록/빨강 점)
+ * - DB 폴링 모드: 🔧 Mock 또는 🔌 Real
+ * - PLC 연결 모드: 🔧 Mock 또는 🔌 Real
  *
  * 사용법:
  * 1. "Add Rule" 버튼으로 새 규칙 추가
  * 2. 테이블에서 규칙 확인 및 삭제
  * 3. Start/Stop 버튼으로 서비스 제어
+ * 4. 운영 모드 정보에서 현재 Mock/Real 모드 확인
  */
 
 "use client";
@@ -44,8 +48,11 @@ export default function AdminPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [plcStatus, setPlcStatus] = useState<"RUNNING" | "STOPPED">("RUNNING");
   const [plcStopReason, setPlcStopReason] = useState<string>("");
+  const [dbMode, setDbMode] = useState<"Mock" | "Real">("Mock"); // ⭐ NEW: DB 폴링 모드
+  const [plcMode, setPlcMode] = useState<"Mock" | "Real">("Mock"); // ⭐ NEW: PLC 연결 모드
   const [rules, setRules] = useState<DefectRule[]>([]);
   const [isLoadingRules, setIsLoadingRules] = useState(true); // ⭐ 규칙 로딩 상태
+  const [isTogglingService, setIsTogglingService] = useState(false); // ⭐ NEW: 서비스 토글 로딩 상태
   const [newRule, setNewRule] = useState({ code: "", name: "", threshold: 5 });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCode, setEditingCode] = useState<string | null>(null);
@@ -87,6 +94,7 @@ export default function AdminPage() {
 
   /**
    * 서비스 실행 상태 조회
+   * ⭐ DB와 PLC 모드 정보도 함께 조회
    */
   const fetchStatus = async () => {
     try {
@@ -97,6 +105,9 @@ export default function AdminPage() {
       setIsRunning(isActuallyRunning);
       setPlcStatus(res.data.line_status || "RUNNING");
       setPlcStopReason(res.data.stop_reason || "");
+      // ⭐ NEW: DB와 PLC 모드 정보 설정
+      setDbMode(res.data.system_status?.db_mode || "Mock");
+      setPlcMode(res.data.system_status?.plc_mode || "Mock");
     } catch (e) {
       console.error(e);
     }
@@ -174,8 +185,15 @@ export default function AdminPage() {
   /**
    * 서비스 시작/정지
    * ⭐ fetchStatus()를 await로 기다려서 UI 상태가 즉시 업데이트되도록 함
+   * ⭐ NEW: 로딩 상태 추가로 중복 클릭 방지
    */
   const toggleService = async (action: "start" | "stop") => {
+    // 로딩 중이거나 규칙 로딩 중이면 실행 안 함
+    if (isTogglingService || isLoadingRules) {
+      return;
+    }
+
+    setIsTogglingService(true);
     try {
       await axios.post("/api/admin/control", { action });
       // ⭐ fetchStatus()를 await로 기다리기 (즉시 상태 동기화)
@@ -187,6 +205,8 @@ export default function AdminPage() {
       showToast(message, "success");
     } catch (e) {
       showToast("서비스 제어에 실패했습니다", "error");
+    } finally {
+      setIsTogglingService(false);
     }
   };
 
@@ -344,8 +364,10 @@ export default function AdminPage() {
 
         {/* 서비스 제어 섹션 */}
         <section className="mb-12 bg-card border rounded-xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">모니터링 서비스 제어</h2>
-          <div className="flex items-center gap-6">
+          <h2 className="text-xl font-semibold mb-6">모니터링 서비스 제어</h2>
+
+          {/* 서비스 상태 행 */}
+          <div className="flex items-center gap-6 mb-6 pb-6 border-b border-border/50">
             {/* 상태 표시 */}
             <div
               className={cn(
@@ -361,19 +383,67 @@ export default function AdminPage() {
             <div className="flex gap-2 ml-auto">
               <button
                 onClick={() => toggleService("start")}
-                disabled={isRunning || isLoadingRules} // ⭐ 규칙 로딩 중이면 비활성화
+                disabled={isRunning || isLoadingRules || isTogglingService} // ⭐ NEW: 로딩 중이면 비활성화
                 className="flex items-center gap-2 px-6 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Play className="w-4 h-4" />{" "}
-                {isLoadingRules ? "로딩 중..." : "시작"}
+                {isTogglingService ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                    처리 중...
+                  </>
+                ) : isLoadingRules ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                    로딩 중...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" /> 시작
+                  </>
+                )}
               </button>
               <button
                 onClick={() => toggleService("stop")}
-                disabled={!isRunning}
+                disabled={!isRunning || isTogglingService} // ⭐ NEW: 로딩 중이면 비활성화
                 className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Square className="w-4 h-4 fill-current" /> 정지
+                {isTogglingService ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-4 h-4 fill-current" /> 정지
+                  </>
+                )}
               </button>
+            </div>
+          </div>
+
+          {/* ⭐ NEW: 운영 모드 정보 행 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">DB 폴링 모드:</span>
+              <span className={cn(
+                "px-3 py-1 rounded-full text-xs font-bold",
+                dbMode === "Mock"
+                  ? "bg-blue-500/20 text-blue-400"
+                  : "bg-purple-500/20 text-purple-400"
+              )}>
+                {dbMode === "Mock" ? "🔧 Mock" : "🔌 Real"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">PLC 연결 모드:</span>
+              <span className={cn(
+                "px-3 py-1 rounded-full text-xs font-bold",
+                plcMode === "Mock"
+                  ? "bg-blue-500/20 text-blue-400"
+                  : "bg-purple-500/20 text-purple-400"
+              )}>
+                {plcMode === "Mock" ? "🔧 Mock" : "🔌 Real"}
+              </span>
             </div>
           </div>
         </section>

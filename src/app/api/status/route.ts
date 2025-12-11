@@ -32,7 +32,7 @@ export async function GET() {
     return NextResponse.json({
       ...status,
       total_counts: status.current_counts, // 이미 계산된 카운트 사용
-      polling_interval: 5, // 5초 (현재 고정값)
+      // ⭐ monitorService에서 반환하는 실제 폴링 주기 사용
       // ⭐ rules 제거: 클라이언트에서 /api/admin/rules로 별도 조회
     });
   } catch (error: any) {
@@ -45,7 +45,6 @@ export async function GET() {
     return NextResponse.json({
       ...status,
       total_counts: {},
-      polling_interval: 5,
       error: error.message,
     });
   }

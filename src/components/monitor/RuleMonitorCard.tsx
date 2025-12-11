@@ -1,25 +1,3 @@
-/**
- * @file components/monitor/RuleMonitorCard.tsx
- * @description
- * 개별 규칙의 불량 현황을 카드 형태로 표시하는 컴포넌트.
- * 불량이 감지되면 빨간색으로 강조되며 애니메이션 효과가 적용됩니다.
- *
- * 주요 기능:
- * - 규칙명과 임계값 표시
- * - 현재 불량 카운트 표시 (큰 숫자로 강조)
- * - 최근 불량 정보 표시 (이름, 시간)
- * - 불량 감지 시 색상 변경 및 애니메이션 효과
- *
- * 사용 예시:
- * ```tsx
- * <RuleMonitorCard
- *   rule={{ code: "APP001", name: "외관불량", threshold: 5 }}
- *   count={3}
- *   recentDefect={{ id: "1", code: "APP001", name: "스크래치", timestamp: "2024-01-01T12:00:00Z" }}
- * />
- * ```
- */
-
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 

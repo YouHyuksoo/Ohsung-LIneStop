@@ -1,25 +1,3 @@
-/**
- * @file components/monitor/LineStatusAlert.tsx
- * @description
- * 라인 정지/운영 상태를 시각적으로 표시하는 알림 컴포넌트.
- * 라인이 정지되었을 때는 빨간색으로, 정상 운영 중일 때는 초록색으로 표시됩니다.
- *
- * 주요 기능:
- * - 라인 상태에 따른 색상 변경 (정지: 빨강, 운영: 초록)
- * - 정지 사유 표시
- * - 임계값을 초과한 불량 유형 표시 (배지 형태)
- * - 정지 시 애니메이션 효과 (pulse)
- *
- * 사용 예시:
- * ```tsx
- * <LineStatusAlert
- *   lineStatus="STOPPED"
- *   stopReason="외관불량 임계값 초과"
- *   violatedTypes={["APPEARANCE"]}
- * />
- * ```
- */
-
 import { AlertTriangle, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +46,7 @@ export default function LineStatusAlert({
                 isStopped ? "text-red-400" : "text-green-400"
               )}
             >
-              {isStopped ? "⚠️ 라인 정지 신호 발송" : "✅ 정상 운영 중"}
+              {isStopped ? "⚠️ 라인 정지 신호 발송" : "✅ 감지된 불량없음"}
             </h3>
             <p
               className={cn(

@@ -5,17 +5,18 @@
  *
  * 기능:
  * - 로고 및 프로젝트 이름
+ * - 모니터링 페이지 바로가기 버튼
+ * - 설정 페이지 바로가기 버튼 (⭐ NEW: 설정 아이콘)
  * - 알림 아이콘 (배지 포함)
  * - 테마 전환 버튼
  * - 사용자 프로필 드롭다운
- * - 모니터링 페이지 바로가기 버튼
  * - 로그인/로그아웃 버튼
  */
 
 "use client";
 
 import Link from "next/link";
-import { Activity } from "lucide-react";
+import { Activity, Settings } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationDropdown from "./NotificationDropdown";
 import UserMenu from "./UserMenu";
@@ -52,6 +53,15 @@ export default function Navbar() {
             >
               <Activity className="w-4 h-4" />
               <span>모니터링</span>
+            </Link>
+
+            {/* 설정 바로가기 */}
+            <Link
+              href="/settings"
+              className="flex items-center justify-center p-2 hover:bg-slate-500/10 rounded-lg transition-colors"
+              title="설정"
+            >
+              <Settings className="w-5 h-5 text-slate-400 hover:text-slate-300" />
             </Link>
 
             {/* 알림 */}

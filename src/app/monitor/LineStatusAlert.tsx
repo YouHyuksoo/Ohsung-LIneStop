@@ -46,7 +46,7 @@ export default function LineStatusAlert({
                 isStopped ? "text-red-400" : "text-green-400"
               )}
             >
-              {isStopped ? "⚠️ 라인 정지 신호 발송" : "✅ 정상 운영 중"}
+              {isStopped ? "⚠️ 라인 정지 신호 발송" : "✅ 감지된 불량없음"}
             </h3>
             <p
               className={cn(
