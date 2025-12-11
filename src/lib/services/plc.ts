@@ -5,14 +5,16 @@
  * Mitsubishi MC Protocol (3E/4E Frame) 지원
  *
  * 주요 기능:
- * - 라인 상태 읽기 (RUNNING/STOPPED)
+ * - 라인 상태 읽기 (RUNNING/STOPPED/WARNING)
  * - 라인 정지 명령 전송
+ * - 라인 경고(알람) 명령 전송
  * - 라인 재가동 명령 전송
  *
- * 단일 주소 제어 모델:
- * - 하나의 비트 주소(예: M100)를 사용하여 제어 및 상태 확인
- * - Read 1 / Write 1 : 정지 (STOPPED)
- * - Read 0 / Write 0 : 가동 (RUNNING)
+ * 3단계 제어 모델:
+ * - 하나의 비트 주소(예: D7000)를 사용하여 제어 및 상태 확인
+ * - Read/Write 0 : 해지 (라인 가동 - RUNNING)
+ * - Read/Write 1 : 정지 (라인 정지 - STOPPED)
+ * - Read/Write 2 : 알람 (경고 - WARNING)
  *
  * Mock 모드:
  * - 실제 PLC 없이도 테스트 가능
@@ -20,8 +22,8 @@
  *
  * 초보자 가이드:
  * 1. **mockMode**: true로 설정하면 실제 PLC 없이 테스트 가능
- * 2. **isStopped**: 라인 정지 상태를 나타내는 플래그
- * 3. **stopReason**: 정지 사유를 저장
+ * 2. **currentState**: 현재 PLC 상태 (0, 1, 2)
+ * 3. **stopReason**: 정지/경고 사유를 저장
  *
  * @example
  * import { plc } from '@/lib/services/plc';
@@ -30,12 +32,15 @@
  * await plc.connect();
  *
  * // 라인 상태 확인
- * const status = await plc.readStatus(); // 'RUNNING' or 'STOPPED'
+ * const status = await plc.readStatus(); // 'RUNNING' | 'STOPPED' | 'WARNING'
  *
- * // 라인 정지 (Bit 1 쓰기)
+ * // 라인 정지 (값 1 쓰기)
  * await plc.stopLine('불량 임계값 초과');
  *
- * // 라인 재가동 (Bit 0 쓰기)
+ * // 라인 경고 (값 2 쓰기)
+ * await plc.warnLine('불량 감지됨');
+ *
+ * // 라인 재가동 (값 0 쓰기)
  * await plc.resetLine();
  */
 
@@ -54,15 +59,27 @@ try {
 }
 
 /**
+ * PLC 상태값 정의
+ * - 0: 해지 (라인 가동)
+ * - 1: 정지 (라인 정지)
+ * - 2: 알람 (경고)
+ */
+export const PLC_VALUES = {
+  RUNNING: 0, // 해지 (라인 가동)
+  STOPPED: 1, // 정지 (라인 정지)
+  WARNING: 2, // 알람 (경고)
+} as const;
+
+/**
  * PLC 통신 클래스
  */
 class PLC {
   private mockMode: boolean = true;
-  private isStopped: boolean = false;
+  private currentState: number = PLC_VALUES.RUNNING; // 현재 상태 (0, 1, 2)
   private _stopReason: string = "";
-  private ip: string = "192.168.0.1";
-  private port: number = 5000;
-  private address: string = "M100"; // 제어 및 상태용 단일 주소
+  private ip: string = "192.168.151.27";
+  private port: number = 5012;
+  private address: string = "D7000"; // 제어 및 상태용 단일 주소
   private settingsFile: string;
   private client: any = null;
   private isConnected: boolean = false;
@@ -75,7 +92,7 @@ class PLC {
       logger.log(
         "INFO",
         "PLC",
-        `Mock PLC 모드로 초기화됨 (${this.ip}:${this.port})`
+        `Mock PLC 모드로 초기화됨 (${this.ip}:${this.port}, 주소: ${this.address})`
       );
     }
   }
@@ -149,7 +166,11 @@ class PLC {
       await Promise.race([connectPromise, timeoutPromise]);
 
       this.isConnected = true;
-      logger.log("INFO", "PLC", `PLC 연결 성공 (${this.ip}:${this.port})`);
+      logger.log(
+        "INFO",
+        "PLC",
+        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address})`
+      );
     } catch (error) {
       this.isConnected = false;
       logger.log("ERROR", "PLC", `PLC 연결 실패: ${error}`);
@@ -158,7 +179,7 @@ class PLC {
   }
 
   /**
-   * 정지 사유를 반환합니다.
+   * 정지/경고 사유를 반환합니다.
    */
   get stopReason(): string {
     return this._stopReason;
@@ -181,11 +202,23 @@ class PLC {
   /**
    * 라인 상태를 읽어옵니다.
    *
-   * @returns 'RUNNING' (0) 또는 'STOPPED' (1)
+   * 값 정의:
+   * - 0: 해지 (RUNNING)
+   * - 1: 정지 (STOPPED)
+   * - 2: 알람 (WARNING)
+   *
+   * @returns 'RUNNING' | 'STOPPED' | 'WARNING'
    */
-  async readStatus(): Promise<"RUNNING" | "STOPPED"> {
+  async readStatus(): Promise<"RUNNING" | "STOPPED" | "WARNING"> {
     if (this.mockMode) {
-      return this.isStopped ? "STOPPED" : "RUNNING";
+      switch (this.currentState) {
+        case PLC_VALUES.STOPPED:
+          return "STOPPED";
+        case PLC_VALUES.WARNING:
+          return "WARNING";
+        default:
+          return "RUNNING";
+      }
     }
 
     if (!this.isConnected) {
@@ -198,11 +231,14 @@ class PLC {
       const values = await this.client.readPLCDevices(this.address, 1);
       const statusValue = values[0];
 
-      // 1 = 정지, 0 = 가동
-      if (statusValue === 1) {
-        return "STOPPED";
-      } else {
-        return "RUNNING";
+      // 값에 따른 상태 반환
+      switch (statusValue) {
+        case PLC_VALUES.STOPPED:
+          return "STOPPED";
+        case PLC_VALUES.WARNING:
+          return "WARNING";
+        default:
+          return "RUNNING";
       }
     } catch (error) {
       logger.log("ERROR", "PLC", `상태 읽기 실패: ${error}`);
@@ -212,47 +248,85 @@ class PLC {
   }
 
   /**
-   * 라인 정지 명령을 전송합니다. (Bit 1 쓰기)
+   * 라인 정지 명령을 전송합니다. (값 1 쓰기)
+   *
+   * 조건: 불량 카운트 >= 임계값
    *
    * @param reason - 정지 사유
    */
   async stopLine(reason: string): Promise<void> {
-    logger.log("ERROR", "PLC", `🚨 라인 정지 명령 전송! 사유: ${reason}`);
+    logger.log(
+      "ERROR",
+      "PLC",
+      `🚨 라인 정지 명령 전송! (${this.address} = 1) 사유: ${reason}`
+    );
     this._stopReason = reason;
 
     if (this.mockMode) {
-      this.isStopped = true;
+      this.currentState = PLC_VALUES.STOPPED;
       return;
     }
 
     if (!this.isConnected) await this.connect();
 
     try {
-      // 해당 주소에 1 쓰기
-      await this.client.setPLCDevices(this.address, [1]);
+      // 해당 주소에 1 쓰기 (정지)
+      await this.client.setPLCDevices(this.address, [PLC_VALUES.STOPPED]);
     } catch (error) {
       logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
     }
   }
 
   /**
-   * 라인 재가동 명령을 전송합니다. (Bit 0 쓰기)
-   * 정지 상태를 해제하고 라인을 다시 시작합니다.
+   * 라인 경고(알람) 명령을 전송합니다. (값 2 쓰기)
+   *
+   * 조건: 0 < 불량 카운트 < 임계값
+   *
+   * @param reason - 경고 사유
    */
-  async resetLine(): Promise<void> {
-    logger.log("INFO", "PLC", "✅ 라인 재가동 명령 전송");
-    this._stopReason = "";
+  async warnLine(reason: string): Promise<void> {
+    logger.log(
+      "WARN",
+      "PLC",
+      `⚠️ 라인 경고(알람) 명령 전송! (${this.address} = 2) 사유: ${reason}`
+    );
+    this._stopReason = reason;
 
     if (this.mockMode) {
-      this.isStopped = false;
+      this.currentState = PLC_VALUES.WARNING;
       return;
     }
 
     if (!this.isConnected) await this.connect();
 
     try {
-      // 해당 주소에 0 쓰기
-      await this.client.setPLCDevices(this.address, [0]);
+      // 해당 주소에 2 쓰기 (경고/알람)
+      await this.client.setPLCDevices(this.address, [PLC_VALUES.WARNING]);
+    } catch (error) {
+      logger.log("ERROR", "PLC", `경고 명령 전송 실패: ${error}`);
+    }
+  }
+
+  /**
+   * 라인 재가동 명령을 전송합니다. (값 0 쓰기)
+   * 정지/경고 상태를 해제하고 라인을 다시 시작합니다.
+   *
+   * 조건: 불량 카운트 == 0
+   */
+  async resetLine(): Promise<void> {
+    logger.log("INFO", "PLC", `✅ 라인 재가동 명령 전송 (${this.address} = 0)`);
+    this._stopReason = "";
+
+    if (this.mockMode) {
+      this.currentState = PLC_VALUES.RUNNING;
+      return;
+    }
+
+    if (!this.isConnected) await this.connect();
+
+    try {
+      // 해당 주소에 0 쓰기 (해지/가동)
+      await this.client.setPLCDevices(this.address, [PLC_VALUES.RUNNING]);
     } catch (error) {
       logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
     }

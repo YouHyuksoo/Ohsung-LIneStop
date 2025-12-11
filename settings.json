@@ -15,9 +15,9 @@
     "sound": true
   },
   "plc": {
-    "ip": "192.168.0.1",
-    "port": 5000,
-    "address": "M100"
+    "ip": "192.168.151.27",
+    "port": 5012,
+    "address": "D7000"
   },
   "db": {
     "host": "localhost",

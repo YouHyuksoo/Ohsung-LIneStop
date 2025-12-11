@@ -73,8 +73,8 @@ export interface WindowInfo {
 export interface MonitorStatus {
   /** 모니터링 서비스 실행 여부 */
   is_running: boolean;
-  /** 라인 상태 ('RUNNING' | 'STOPPED') */
-  line_status: "RUNNING" | "STOPPED";
+  /** 라인 상태 ('RUNNING' | 'STOPPED' | 'WARNING') */
+  line_status: "RUNNING" | "STOPPED" | "WARNING";
   /** 정지 사유 */
   stop_reason: string;
   /** 윈도우 정보 */

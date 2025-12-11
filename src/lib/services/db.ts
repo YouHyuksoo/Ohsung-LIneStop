@@ -224,20 +224,23 @@ class Database {
 
       // DB 데이터를 Defect 타입으로 변환
       const defects: Defect[] = (result.rows || []).map((row: any) => {
-        const defectTypeMap: Record<string, any> = {
-          P: "COMMON_SENSE", // P = 불량
-          A: "APPEARANCE", // A = 외관불량
-          F: "FUNCTION", // F = 기능불량
-          L: "PL", // L = 안전불량
-        };
+        const code = row.CODE || "UNKNOWN";
+        let type: "APPEARANCE" | "FUNCTION" | "PL" | "COMMON_SENSE" =
+          "COMMON_SENSE";
+        const prefix = code.substring(0, 3);
+
+        if (prefix === "3WA") type = "APPEARANCE";
+        else if (prefix === "3WF") type = "FUNCTION";
+        else if (prefix === "3WP") type = "PL";
+        else if (prefix === "3WS") type = "COMMON_SENSE";
 
         return {
           id:
             row.ID ||
             `D-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-          code: row.CODE || "UNKNOWN",
+          code: code,
           name: row.NAME || "미분류 불량",
-          type: defectTypeMap[row.DEFECT_TYPE] || "COMMON_SENSE",
+          type: type,
           timestamp: row.TIMESTAMP
             ? new Date(row.TIMESTAMP).toISOString()
             : new Date().toISOString(),
@@ -505,10 +508,16 @@ class Database {
       // 활성 규칙 중 랜덤 선택
       const rule = activeRules[Math.floor(Math.random() * activeRules.length)];
 
+      // 규칙 코드(접두사) + 랜덤 숫자
+      const randomSuffix = Math.floor(Math.random() * 999)
+        .toString()
+        .padStart(3, "0");
+      const mockCode = `${rule.code}-${randomSuffix}`; // 예: 3WA-042
+
       const defect: Defect = {
         id: `D-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-        code: rule.code,
-        name: rule.name,
+        code: mockCode,
+        name: `${rule.name} (테스트)`,
         type: rule.type,
         timestamp: now.toISOString(),
         resolved: false,
@@ -661,11 +670,7 @@ class Database {
 
       return true;
     } catch (error) {
-      logger.log(
-        "ERROR",
-        "DB",
-        `[Oracle] 불양 해결 처리 실패: ${error}`
-      );
+      logger.log("ERROR", "DB", `[Oracle] 불양 해결 처리 실패: ${error}`);
 
       // 롤백
       if (connection) {
