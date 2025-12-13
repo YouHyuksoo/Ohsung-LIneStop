@@ -9,22 +9,21 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { getSettings } from "@/lib/settings";
-import { validateSession } from "@/lib/auth";
-import { cookies } from "next/headers";
 import { db } from "@/lib/services/db";
 import { plc } from "@/lib/services/plc";
 import { logger } from "@/lib/services/logger";
+
+export const dynamic = "force-dynamic";
 
 const settingsFilePath = path.join(process.cwd(), "settings.json");
 
 /**
  * 세션 검증 헬퍼 함수
+ * NOTE: 로그인 기능이 제거되어 항상 성공하도록 처리
  */
 async function checkAuth() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get("session_id")?.value;
-  const user = validateSession(sessionId);
-  return user;
+  // 로그인 기능 제거로 항상 true 반환
+  return true;
 }
 
 /**
@@ -33,14 +32,6 @@ async function checkAuth() {
  */
 export async function GET() {
   try {
-    const user = await checkAuth();
-    if (!user) {
-      return NextResponse.json(
-        { message: "인증되지 않은 사용자입니다." },
-        { status: 401 }
-      );
-    }
-
     const settings = await getSettings();
     return NextResponse.json(settings);
   } catch (error: any) {
@@ -58,14 +49,6 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const user = await checkAuth();
-    if (!user) {
-      return NextResponse.json(
-        { message: "인증되지 않은 사용자입니다." },
-        { status: 401 }
-      );
-    }
-
     const newSettings = await request.json();
 
     // 설정 파일에 저장
@@ -76,7 +59,11 @@ export async function POST(request: Request) {
     plc.reloadSettings();
 
     // Logger에 기록
-    logger.log("INFO", "API", "설정이 저장되고 싱글톤 인스턴스가 재로드되었습니다.");
+    logger.log(
+      "INFO",
+      "API",
+      "설정이 저장되고 싱글톤 인스턴스가 재로드되었습니다."
+    );
 
     return NextResponse.json({ message: "설정이 저장되었습니다." });
   } catch (error: any) {

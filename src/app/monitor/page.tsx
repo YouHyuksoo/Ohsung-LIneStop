@@ -192,7 +192,7 @@ export default function MonitorPage() {
           rules.map((rule) => {
             const count = status?.current_counts?.[rule.code] || 0;
             const recentDefect = status.current_defects
-              ?.filter((defect) => defect.code === rule.code)
+              ?.filter((defect) => defect.code.startsWith(rule.code))
               .slice(0, 1)[0];
 
             return (

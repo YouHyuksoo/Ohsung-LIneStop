@@ -39,8 +39,8 @@ import { logger } from "@/lib/services/logger";
  */
 export async function GET(request: NextRequest) {
   try {
-    // DB 상태 확인 (Mock 모드에서는 항상 성공)
-    const recentDefects = db.fetchRecentDefects();
+    // DB 상태 확인 (실제 연결 테스트 수행)
+    await db.testConnection();
 
     logger.log("INFO", "API", "DB 연결 테스트 수행");
 
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         message: "DB 연결에 성공했습니다.",
-        defectsCount: recentDefects.length,
       },
       { status: 200 }
     );

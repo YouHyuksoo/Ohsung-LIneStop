@@ -270,7 +270,17 @@ class MonitorService {
         this.currentDefects = allDefects;
         this.currentCounts = ruleCounts;
       } else {
-        // ===== 실제 모드 (Oracle 프로시저 호출) =====
+        // ===== 실제 모드 (Oracle 프로시저 호출 + 불량 리스트 조회) =====
+
+        // 1. 화면 표시용 불량 리스트 조회 (비동기 병렬 처리 가능하지만 순차 처리)
+        // 최근 1시간 내의 미해결 불량을 조회하여 화면에 표시
+        let allDefects: Defect[] = [];
+        try {
+          allDefects = await db.getAllDefectsAsync();
+        } catch (err) {
+          logger.log("ERROR", "Monitor", `불량 리스트 조회 실패: ${err}`);
+        }
+
         const rules = db.getRules();
         const ruleCounts: Record<string, number> = {};
 
@@ -284,6 +294,7 @@ class MonitorService {
           if (!rule.is_active) continue;
 
           // ⭐ 프로시저 호출 (파라미터: 접두사 코드, 임계값)
+          // 라인 정지 판단은 DB 프로시저에 위임
           const procResult = await db.checkLineStopProcedure(
             rule.code,
             rule.threshold
@@ -332,7 +343,8 @@ class MonitorService {
           ruleCounts
         );
 
-        this.currentDefects = [];
+        // 조회된 불량 리스트 업데이트
+        this.currentDefects = allDefects;
         this.currentCounts = ruleCounts;
       }
     } catch (error) {

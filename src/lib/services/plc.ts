@@ -152,18 +152,23 @@ class PLC {
     try {
       this.client = new MCProtocol();
 
-      // ⭐ 2초 타임아웃 적용
-      const connectPromise = this.client.initiateConnection({
-        host: this.ip,
-        port: this.port,
-        ascii: false, // Binary 모드 사용
+      // Callback 방식을 Promise로 변환
+      await new Promise<void>((resolve, reject) => {
+        this.client.initiateConnection(
+          {
+            host: this.ip,
+            port: this.port,
+            ascii: false,
+          },
+          (err: any) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
       });
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Connection timed out (2s)")), 2000);
-      });
-
-      await Promise.race([connectPromise, timeoutPromise]);
 
       this.isConnected = true;
       logger.log(
@@ -174,7 +179,7 @@ class PLC {
     } catch (error) {
       this.isConnected = false;
       logger.log("ERROR", "PLC", `PLC 연결 실패: ${error}`);
-      // throw error; // 연결 실패는 로그만 남기고 서비스는 계속 진행
+      // throw error; // 연결 실패 시 로그만 남김
     }
   }
 
@@ -199,16 +204,6 @@ class PLC {
     return this.isConnected;
   }
 
-  /**
-   * 라인 상태를 읽어옵니다.
-   *
-   * 값 정의:
-   * - 0: 해지 (RUNNING)
-   * - 1: 정지 (STOPPED)
-   * - 2: 알람 (WARNING)
-   *
-   * @returns 'RUNNING' | 'STOPPED' | 'WARNING'
-   */
   async readStatus(): Promise<"RUNNING" | "STOPPED" | "WARNING"> {
     if (this.mockMode) {
       switch (this.currentState) {
@@ -223,15 +218,31 @@ class PLC {
 
     if (!this.isConnected) {
       await this.connect();
-      if (!this.isConnected) return "RUNNING"; // 연결 실패 시 기본값
+      if (!this.isConnected) return "RUNNING";
     }
 
     try {
-      // 단일 주소 값 읽기
-      const values = await this.client.readPLCDevices(this.address, 1);
-      const statusValue = values[0];
+      // Callback 방식을 Promise로 변환
+      const values = await new Promise<number[]>((resolve, reject) => {
+        // 메서드 존재 여부 방어 코드
+        if (typeof this.client.readPLCDevices !== "function") {
+          reject(
+            new Error(
+              `readPLCDevices is not a function. Client keys: ${Object.keys(
+                this.client
+              ).join(", ")}`
+            )
+          );
+          return;
+        }
 
-      // 값에 따른 상태 반환
+        this.client.readPLCDevices(this.address, 1, (err: any, data: any) => {
+          if (err) reject(err);
+          else resolve(data);
+        });
+      });
+
+      const statusValue = values[0];
       switch (statusValue) {
         case PLC_VALUES.STOPPED:
           return "STOPPED";
@@ -241,19 +252,17 @@ class PLC {
           return "RUNNING";
       }
     } catch (error) {
+      // 연결 끊김 등으로 인한 에러 처리
+      if (String(error).includes("function")) {
+        // 함수가 없으면 라이브러리 문제일 수 있음
+        logger.log("ERROR", "PLC", `라이브러리 메서드 오류: ${error}`);
+      }
       logger.log("ERROR", "PLC", `상태 읽기 실패: ${error}`);
       this.isConnected = false;
       return "RUNNING";
     }
   }
 
-  /**
-   * 라인 정지 명령을 전송합니다. (값 1 쓰기)
-   *
-   * 조건: 불량 카운트 >= 임계값
-   *
-   * @param reason - 정지 사유
-   */
   async stopLine(reason: string): Promise<void> {
     logger.log(
       "ERROR",
@@ -270,20 +279,21 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
-      // 해당 주소에 1 쓰기 (정지)
-      await this.client.setPLCDevices(this.address, [PLC_VALUES.STOPPED]);
+      await new Promise<void>((resolve, reject) => {
+        this.client.writePLCDevices(
+          this.address,
+          [PLC_VALUES.STOPPED],
+          (err: any) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
     } catch (error) {
       logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
     }
   }
 
-  /**
-   * 라인 경고(알람) 명령을 전송합니다. (값 2 쓰기)
-   *
-   * 조건: 0 < 불량 카운트 < 임계값
-   *
-   * @param reason - 경고 사유
-   */
   async warnLine(reason: string): Promise<void> {
     logger.log(
       "WARN",
@@ -300,19 +310,21 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
-      // 해당 주소에 2 쓰기 (경고/알람)
-      await this.client.setPLCDevices(this.address, [PLC_VALUES.WARNING]);
+      await new Promise<void>((resolve, reject) => {
+        this.client.writePLCDevices(
+          this.address,
+          [PLC_VALUES.WARNING],
+          (err: any) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
     } catch (error) {
       logger.log("ERROR", "PLC", `경고 명령 전송 실패: ${error}`);
     }
   }
 
-  /**
-   * 라인 재가동 명령을 전송합니다. (값 0 쓰기)
-   * 정지/경고 상태를 해제하고 라인을 다시 시작합니다.
-   *
-   * 조건: 불량 카운트 == 0
-   */
   async resetLine(): Promise<void> {
     logger.log("INFO", "PLC", `✅ 라인 재가동 명령 전송 (${this.address} = 0)`);
     this._stopReason = "";
@@ -325,8 +337,16 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
-      // 해당 주소에 0 쓰기 (해지/가동)
-      await this.client.setPLCDevices(this.address, [PLC_VALUES.RUNNING]);
+      await new Promise<void>((resolve, reject) => {
+        this.client.writePLCDevices(
+          this.address,
+          [PLC_VALUES.RUNNING],
+          (err: any) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
     } catch (error) {
       logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
     }

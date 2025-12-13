@@ -14,8 +14,11 @@ const nextConfig = {
   reactStrictMode: true,
   // 개발 서버에 접근 가능한 IP 주소 설정
   allowedDevOrigins: ["192.168.137.1", "localhost", "127.0.0.1"],
+  // 네이티브 모듈(oracledb)을 번들링에서 제외하여 Thick 모드 동작 지원
+  serverExternalPackages: ["oracledb"],
   webpack: (config) => {
     config.externals.push("better-sqlite3");
+    config.externals.push("oracledb"); // oracledb 추가
     return config;
   },
 };

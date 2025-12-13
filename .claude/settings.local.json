@@ -13,7 +13,12 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(rm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(del /f /q \"src\\components\\LoginForm.tsx\")",
+      "Bash(del /f /q \"src\\components\\UserMenu.tsx\")",
+      "Bash(del /f /q \"src\\components\\ProtectedRoute.tsx\")",
+      "Bash(del /f /q \"src\\lib\\auth.ts\")",
+      "Bash(del /f /q \"src\\lib\\store\\session-store.ts\")"
     ],
     "deny": [],
     "ask": []

@@ -24,6 +24,8 @@ import { NextResponse } from "next/server";
 import { monitorService } from "@/lib/services/monitor";
 import { logger } from "@/lib/services/logger";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // monitorService에서 캐시된 상태만 반환 (DB 조회 X)

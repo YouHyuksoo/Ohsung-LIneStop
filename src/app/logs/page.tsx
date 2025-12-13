@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { format } from "date-fns";
+import BackButton from "@/components/BackButton";
 
 /**
  * 로그 엔트리 타입
@@ -206,10 +207,11 @@ export default function LogsPage() {
               <Trash2 className="w-4 h-4" />
               로그 삭제
             </button>
+            {/* 메인으로 돌아가기 버튼 추가 */}
+            <BackButton toHome label="메인으로 돌아가기" />
           </div>
         </div>
       </div>
-
       {/* 필터 및 검색 */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="bg-card rounded-xl border border-border p-4">
@@ -287,7 +289,6 @@ export default function LogsPage() {
           </div>
         </div>
       </div>
-
       {/* 로그 목록 */}
       <div className="max-w-7xl mx-auto">
         <div className="bg-card rounded-xl border border-border p-4 h-[600px] overflow-y-auto">
@@ -343,7 +344,6 @@ export default function LogsPage() {
           )}
         </div>
       </div>
-
       {/* 삭제 다이어로그 */}
       {showDeleteDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

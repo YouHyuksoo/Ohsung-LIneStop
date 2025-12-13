@@ -3,8 +3,8 @@
     "interval": 30
   },
   "mock": {
-    "plc": true,
-    "db": true,
+    "plc": false,
+    "db": false,
     "db_defect_probability": 0.5
   },
   "window": {
@@ -20,10 +20,10 @@
     "address": "D7000"
   },
   "db": {
-    "host": "localhost",
+    "host": "192.168.110.222",
     "port": 1521,
-    "service": "xe",
-    "user": "system",
-    "password": ""
+    "service": "oscw",
+    "user": "INFINITY21_PIMMES",
+    "password": "infinity21_pimmes"
   }
 }

@@ -16,10 +16,10 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Settings } from "lucide-react";
+import { Activity, Settings, FileText, Shield, HelpCircle } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationDropdown from "./NotificationDropdown";
-import UserMenu from "./UserMenu";
+// import UserMenu from "./UserMenu"; // Removed login feature
 
 export default function Navbar() {
   return (
@@ -44,34 +44,54 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* 오른쪽 메뉴 */}
-          <div className="flex items-center gap-3">
-            {/* 모니터링 바로가기 */}
+          {/* 중앙 메뉴 (데스크탑) */}
+          <div className="hidden md:flex items-center gap-2">
             <Link
               href="/monitor"
-              className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-lg transition-colors font-medium"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
             >
               <Activity className="w-4 h-4" />
               <span>모니터링</span>
             </Link>
-
-            {/* 설정 바로가기 */}
+            <Link
+              href="/logs"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              <span>로그</span>
+            </Link>
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-purple-500 hover:bg-purple-500/10 rounded-lg transition-colors"
+            >
+              <Shield className="w-4 h-4" />
+              <span>관리자</span>
+            </Link>
             <Link
               href="/settings"
-              className="flex items-center justify-center p-2 hover:bg-slate-500/10 rounded-lg transition-colors"
-              title="설정"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-500/10 rounded-lg transition-colors"
             >
-              <Settings className="w-5 h-5 text-slate-400 hover:text-slate-300" />
+              <Settings className="w-4 h-4" />
+              <span>설정</span>
             </Link>
+            <Link
+              href="/help"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-orange-500 hover:bg-orange-500/10 rounded-lg transition-colors"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>도움말</span>
+            </Link>
+          </div>
 
+          {/* 오른쪽 메뉴 */}
+          <div className="flex items-center gap-3">
             {/* 알림 */}
             <NotificationDropdown />
-
             {/* 테마 전환 */}
             <ThemeToggle />
-
             {/* 사용자 메뉴 */}
-            <UserMenu />
+            {/* Login feature removed by request */}
+            {/* <UserMenu /> */}
           </div>
         </div>
       </div>

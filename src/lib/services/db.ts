@@ -49,14 +49,50 @@ import path from "path";
 /**
  * Oracle DB 연결을 위한 동적 import
  * Node.js 환경에서만 사용 가능
+ *
+ * Thin 모드로만 작동 (별도 Oracle Instant Client 설치 불필요)
+ * - host:port/service 형식으로 직접 연결
  */
 let oracledb: any = null;
 if (typeof window === "undefined") {
   try {
     // eslint-disable-next-line global-require
     oracledb = require("oracledb");
-    // Oracle Instant Client 설정 (필요시)
-    // oracledb.initOracleClient({ libDir: process.env.ORACLE_CLIENT_LIB_DIR });
+
+    // ⭐ Thick 모드 활성화 (Oracle Instant Client 사용)
+    // 프로젝트 루트의 'instantclient' 폴더를 확인하여 라이브러리 경로 지정
+    // 이를 통해 시스템 설치 없이도 Oracle 11g 등 구버전 DB 접속 가능
+    const clientPath = path.join(process.cwd(), "instantclient");
+
+    if (fs.existsSync(clientPath)) {
+      try {
+        oracledb.initOracleClient({ libDir: clientPath });
+        console.log(
+          `[DB] Oracle DB client 초기화 완료 (Thick 모드): ${clientPath}`
+        );
+        logger.log(
+          "INFO",
+          "DB",
+          `Oracle Client(Thick 모드) 로드됨: ${clientPath}`
+        );
+      } catch (err: any) {
+        if (err.message.includes("NJS-009")) {
+          // 이미 초기화된 경우 무시
+          console.log("[DB] Oracle DB client는 이미 초기화되었습니다.");
+        } else {
+          console.error("[DB] Oracle Client 초기화 실패:", err);
+          logger.log(
+            "ERROR",
+            "DB",
+            `Oracle Client 초기화 실패: ${err.message}`
+          );
+        }
+      }
+    } else {
+      console.log("[DB] 'instantclient' 폴더가 없어 Thin 모드로 동작합니다.");
+    }
+
+    console.log("[DB] node-oracledb 모듈 로드 완료");
   } catch (error) {
     console.warn("[DB] Oracle DB client not available:", error);
   }
@@ -141,7 +177,43 @@ class Database {
   }
 
   /**
+   * DB 연결 테스트를 수행합니다.
+   * 실제 Oracle DB에 접속을 시도하고 성공하면 연결을 닫습니다.
+   */
+  async testConnection(): Promise<void> {
+    if (this.mockMode) {
+      logger.log(
+        "INFO",
+        "DB",
+        "Mock 모드이므로 DB 연결 테스트를 스킵합니다 (성공 처리)."
+      );
+      return;
+    }
+
+    let connection = null;
+    try {
+      connection = await this.connectToOracle();
+      logger.log("INFO", "DB", "DB 연결 테스트 성공");
+    } catch (error) {
+      logger.log("ERROR", "DB", `DB 연결 테스트 실패: ${error}`);
+      throw error;
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
+        } catch (e) {
+          console.error("Failed to close test connection", e);
+        }
+      }
+    }
+  }
+
+  /**
    * Oracle DB에 연결합니다.
+   *
+   * Thin 모드로 직접 연결 (별도 Oracle Instant Client 설치 불필요)
+   * 연결 문자열: host:port/service
+   * 예: 192.168.110.222:1521/OSCW
    */
   private async connectToOracle(): Promise<any> {
     if (!oracledb) {
@@ -149,13 +221,34 @@ class Database {
     }
 
     try {
-      // ⭐ 3초 타임아웃 적용
+      const connectionString = `${this.dbConfig.host}:${this.dbConfig.port}/${this.dbConfig.service}`;
+
+      // 디버깅: 실제 접속 시도하는 정보 출력 (비밀번호 확인용)
+      // 보안을 위해 비밀번호는 앞 1자리만 노출하고 나머지는 마스킹 처리하되, 길이를 함께 표시하여 공백 포함 여부 확인
+      const maskedPwd = this.dbConfig.password
+        ? `${this.dbConfig.password.substring(0, 1)}${"*".repeat(
+            Math.max(0, this.dbConfig.password.length - 1)
+          )} (Length: ${this.dbConfig.password.length})`
+        : "(Empty)";
+
+      console.log(
+        `[DB Debug] 접속 시도 - User: '${this.dbConfig.user}', Password: '${maskedPwd}'`
+      );
+
+      logger.log(
+        "INFO",
+        "DB",
+        `Oracle DB 연결 시도: ${connectionString} (User: ${this.dbConfig.user})`
+      );
+
+      // ⭐ 직접 연결 (Thin 모드)
       const connectPromise = oracledb.getConnection({
         user: this.dbConfig.user,
         password: this.dbConfig.password,
-        connectionString: `${this.dbConfig.host}:${this.dbConfig.port}/${this.dbConfig.service}`,
+        connectionString: connectionString,
       });
 
+      // 3초 타임아웃 적용
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
           () => reject(new Error("DB Connection timed out (3s)")),
@@ -164,6 +257,14 @@ class Database {
       });
 
       const connection = await Promise.race([connectPromise, timeoutPromise]);
+
+      // ⭐ 세션 타임존 설정 (한국 시간)
+      // Node.js oracledb가 DATE 타입을 가져올 때 UTC로 변환되는 문제를 방지하기 위해 세션 레벨에서 설정
+      try {
+        await connection.execute("ALTER SESSION SET TIME_ZONE = '+09:00'");
+      } catch (e) {
+        console.warn("[DB] Failed to set session time zone:", e);
+      }
 
       logger.log("INFO", "DB", "Oracle DB 연결 성공");
       return connection;
@@ -207,15 +308,16 @@ class Database {
           ACTION_DATE as TIMESTAMP,
           DEFECT_TYPE,
           COALESCE(NG_RELEASE_YN, 'N') as RELEASE_YN
-        FROM "INFINITY21_PIMMES"."ICOM_RECIEVE_DATA_NG"
+        FROM "ICOM_RECIEVE_DATA_NG"
         WHERE
           NG_REASON_CODE IS NOT NULL
           AND ACTION_DATE IS NOT NULL
-          AND ACTION_DATE >= SYSDATE - 1/24
+          AND ACTION_DATE >= SYSDATE - 2/24
           AND ACTION_DATE <= SYSDATE
           AND COALESCE(NG_RELEASE_YN, 'N') != 'Y'
+          AND MACHINE_CODE = '045'
+          AND ROWNUM <= 1000
         ORDER BY ACTION_DATE DESC
-        FETCH FIRST 1000 ROWS ONLY
       `;
 
       const result = await connection.execute(query, [], {
@@ -641,7 +743,7 @@ class Database {
 
       // ⭐ 불양 해결 처리: NG_RELEASE_YN = 'Y' 업데이트
       const updateQuery = `
-        UPDATE "INFINITY21_PIMMES"."ICOM_RECIEVE_DATA_NG"
+        UPDATE "ICOM_RECIEVE_DATA_NG"
         SET NG_RELEASE_YN = 'Y',
             RELEASE_TIME = SYSDATE
         WHERE ROWID IN (${rowidList})
