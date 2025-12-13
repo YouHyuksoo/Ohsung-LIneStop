@@ -39,8 +39,16 @@ import { logger } from "@/lib/services/logger";
  */
 export async function GET(request: NextRequest) {
   try {
-    // PLC 상태 확인 (Mock 모드에서는 항상 성공)
-    const status = plc.readStatus();
+    // 1. 강제 재연결 시도
+    await plc.connect();
+
+    // 2. 연결 상태 확인
+    if (!plc.connected && !plc.isMockMode) {
+      throw new Error("연결 실패 (Timeout 또는 네트워크 오류)");
+    }
+
+    // 3. 상태 읽기 시도
+    const status = await plc.readStatus();
 
     logger.log("INFO", "API", "PLC 연결 테스트 수행");
 
