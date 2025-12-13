@@ -304,7 +304,7 @@ class Database {
         SELECT
           ROWID as ID,
           NG_REASON_CODE as CODE,
-          ITEM_LVL1 || '-' || ITEM_LVL2 || '-' || ITEM_LVL3 as NAME,
+          ITEM_CODE||'-'||NG_REASON_CODE as NAME,
           ACTION_DATE as TIMESTAMP,
           DEFECT_TYPE,
           COALESCE(NG_RELEASE_YN, 'N') as RELEASE_YN

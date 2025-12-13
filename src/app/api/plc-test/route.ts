@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         success: false,
         message: `PLC 연결에 실패했습니다: ${errorMessage}`,
       },
-      { status: 500 }
+      { status: 200 }
     );
   }
 }
