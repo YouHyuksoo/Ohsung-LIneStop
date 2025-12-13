@@ -17,34 +17,36 @@ echo   3. 전체 업그레이드 (Git Pull + Install + Build + Restart)
 echo.
 echo   [개별 작업]
 echo   4. 소스 가져오기 (Git Pull)
-echo   5. 라이브러리 설치 (npm install)
-echo   6. 프로젝트 빌드 (npm run build)
+echo   5. 소스 강제 가져오기 (Force Pull - 로컬 변경 삭제)
+echo   6. 라이브러리 설치 (npm install)
+echo   7. 프로젝트 빌드 (npm run build)
 echo.
 echo   [서버 관리]
-echo   7. 서버 시작 (PM2 Start)
-echo   8. 서버 재시작 (PM2 Restart)
-echo   9. 서버 중지 (PM2 Stop)
-echo   10. 서버 상태 확인 (PM2 List)
-echo   11. 실시간 로그 보기 (PM2 Logs)
-echo   12. 윈도우 시작 프로그램 등록 (Auto Startup)
+echo   8. 서버 시작 (PM2 Start)
+echo   9. 서버 재시작 (PM2 Restart)
+echo   10. 서버 중지 (PM2 Stop)
+echo   11. 서버 상태 확인 (PM2 List)
+echo   12. 실시간 로그 보기 (PM2 Logs)
+echo   13. 윈도우 시작 프로그램 등록 (Auto Startup)
 echo.
 echo   0. 종료
 echo.
 echo ========================================================
-set /p choice="원하는 작업의 번호를 입력하세요 (0-12): "
+set /p choice="원하는 작업의 번호를 입력하세요 (0-13): "
 
 if "%choice%"=="1" goto CLONE
 if "%choice%"=="2" goto INITIAL_SETUP
 if "%choice%"=="3" goto FULL_UPGRADE
 if "%choice%"=="4" goto GIT_PULL
-if "%choice%"=="5" goto NPM_INSTALL
-if "%choice%"=="6" goto BUILD
-if "%choice%"=="7" goto START_SERVER
-if "%choice%"=="8" goto RESTART_SERVER
-if "%choice%"=="9" goto STOP_SERVER
-if "%choice%"=="10" goto STATUS
-if "%choice%"=="11" goto VIEW_LOG
-if "%choice%"=="12" goto AUTO_STARTUP
+if "%choice%"=="5" goto FORCE_GIT_PULL
+if "%choice%"=="6" goto NPM_INSTALL
+if "%choice%"=="7" goto BUILD
+if "%choice%"=="8" goto START_SERVER
+if "%choice%"=="9" goto RESTART_SERVER
+if "%choice%"=="10" goto STOP_SERVER
+if "%choice%"=="11" goto STATUS
+if "%choice%"=="12" goto VIEW_LOG
+if "%choice%"=="13" goto AUTO_STARTUP
 if "%choice%"=="0" goto END
 goto MENU
 
@@ -148,6 +150,32 @@ IF %ERRORLEVEL% NEQ 0 (
     echo [오류] Git Pull 실패!
 ) else (
     echo [성공] 최신 소스를 가져왔습니다.
+)
+pause
+goto MENU
+
+:FORCE_GIT_PULL
+cls
+echo ========================================================
+echo        소스 강제 가져오기 (Git Force Pull)
+echo ========================================================
+echo.
+echo [경고] 로컬에서 수정한 모든 변경사항이 사라집니다!
+echo        정말로 진행하시겠습니까? (서버의 최신 소스로 덮어씁니다)
+echo.
+set /p confirm="진행하려면 'Y'를 입력하세요: "
+if /i "%confirm%" neq "Y" goto MENU
+
+echo.
+echo 1. 원격 저장소 정보 가져오기 (Fetch)...
+git fetch --all
+echo.
+echo 2. 로컬 변경사항 초기화 및 덮어쓰기 (Reset --hard)...
+git reset --hard origin/main
+IF %ERRORLEVEL% NEQ 0 (
+    echo [오류] 강제 업데이트 실패!
+) else (
+    echo [성공] 최신 소스로 강제 업데이트되었습니다.
 )
 pause
 goto MENU
