@@ -130,6 +130,158 @@ class PLC {
   }
 
   /**
+   * ⭐ NEW: Ping 테스트를 수행합니다 (TCP 포트 연결 시도)
+   * 네트워크 연결 가능 여부를 빠르게 확인합니다.
+   * @returns {Promise<{success: boolean, message: string, latency?: number}>}
+   */
+  async testPing(): Promise<{
+    success: boolean;
+    message: string;
+    latency?: number;
+  }> {
+    if (this.mockMode) {
+      const message = `Mock 모드 상태 - Ping 테스트 불필요`;
+      logger.log("INFO", "PLC", `🔍 Ping 테스트: ${message}`);
+      return { success: true, message, latency: 0 };
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const net = require("net");
+      const socket = new net.Socket();
+
+      const pingResult = await new Promise<{
+        success: boolean;
+        message: string;
+        latency?: number;
+      }>((resolve) => {
+        const timeout = setTimeout(() => {
+          socket.destroy();
+          resolve({
+            success: false,
+            message: `Ping 타임아웃 (5초 이내 응답 없음)`,
+          });
+        }, 5000);
+
+        socket.on("connect", () => {
+          clearTimeout(timeout);
+          const latency = Date.now() - startTime;
+          socket.destroy();
+          resolve({
+            success: true,
+            message: `Ping 성공 (${this.ip}:${this.port})`,
+            latency,
+          });
+        });
+
+        socket.on("error", (err: any) => {
+          clearTimeout(timeout);
+          resolve({
+            success: false,
+            message: `Ping 실패: ${err.code || err.message}`,
+          });
+        });
+
+        socket.connect(this.port, this.ip);
+      });
+
+      logger.log(
+        pingResult.success ? "INFO" : "WARN",
+        "PLC",
+        `🔍 ${pingResult.message}`
+      );
+      return pingResult;
+    } catch (error) {
+      logger.log("ERROR", "PLC", `Ping 테스트 중 예외 발생: ${error}`);
+      return { success: false, message: `예외: ${error}` };
+    }
+  }
+
+  /**
+   * ⭐ NEW: PLC 접속 테스트를 수행합니다 (MC Protocol 초기화)
+   * Ping 성공 후 실제 PLC 프로토콜 연결을 시도합니다.
+   * @returns {Promise<{success: boolean, message: string, version?: string}>}
+   */
+  async testConnection(): Promise<{
+    success: boolean;
+    message: string;
+    version?: string;
+  }> {
+    if (this.mockMode) {
+      const message = `Mock 모드 상태 - 접속 테스트 불필요`;
+      logger.log("INFO", "PLC", `🔌 접속 테스트: ${message}`);
+      return { success: true, message };
+    }
+
+    if (!MCProtocol) {
+      const message = `mcprotocol 라이브러리가 설치되지 않음`;
+      logger.log("ERROR", "PLC", `🔌 접속 테스트 실패: ${message}`);
+      return { success: false, message };
+    }
+
+    try {
+      const testClient = new MCProtocol();
+
+      const connectionResult = await new Promise<{
+        success: boolean;
+        message: string;
+        version?: string;
+      }>((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve({
+            success: false,
+            message: `접속 타임아웃 (10초 이내 응답 없음)`,
+          });
+        }, 10000);
+
+        testClient.initiateConnection(
+          {
+            host: this.ip,
+            port: this.port,
+            ascii: false,
+          },
+          (err: any) => {
+            clearTimeout(timeout);
+            if (err) {
+              resolve({
+                success: false,
+                message: `MC Protocol 초기화 실패: ${err.message || err}`,
+              });
+            } else {
+              // 정상 연결 확인 - 실시간 데이터를 읽어서 검증
+              testClient.readPLCDevices(this.address, 1, (readErr: any) => {
+                if (readErr) {
+                  resolve({
+                    success: false,
+                    message: `PLC 데이터 읽기 실패: ${readErr.message || readErr}`,
+                  });
+                } else {
+                  resolve({
+                    success: true,
+                    message: `PLC 접속 성공 (${this.ip}:${this.port}, 주소: ${this.address})`,
+                    version: "MC Protocol 3E",
+                  });
+                }
+              });
+            }
+          }
+        );
+      });
+
+      logger.log(
+        connectionResult.success ? "INFO" : "WARN",
+        "PLC",
+        `🔌 ${connectionResult.message}`
+      );
+      return connectionResult;
+    } catch (error) {
+      logger.log("ERROR", "PLC", `접속 테스트 중 예외 발생: ${error}`);
+      return { success: false, message: `예외: ${error}` };
+    }
+  }
+
+  /**
    * PLC에 연결합니다.
    */
   async connect(): Promise<void> {
