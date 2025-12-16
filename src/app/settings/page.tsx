@@ -85,10 +85,12 @@ export default function SettingsPage() {
   const [plcTestResult, setPlcTestResult] = useState<{
     success: boolean;
     message: string;
+    mockMode?: boolean;
   } | null>(null);
   const [dbTestResult, setDbTestResult] = useState<{
     success: boolean;
     message: string;
+    mockMode?: boolean;
   } | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -160,17 +162,25 @@ export default function SettingsPage() {
     try {
       const res = await axios.get("/api/plc-test");
       setPlcTestResult({
-        success: true,
+        success: res.data.success !== false,
         message: res.data.message || "PLC 연결에 성공했습니다.",
+        mockMode: res.data.mockMode,
       });
-      showMessage("success", res.data.message || "PLC 연결에 성공했습니다.");
+      if (res.data.success !== false) {
+        showMessage("success", res.data.message || "PLC 연결에 성공했습니다.");
+      } else {
+        showMessage("error", `PLC 연결 실패: ${res.data.message}`);
+      }
     } catch (err: any) {
       console.error("PLC connection test failed:", err);
+      // HTTP 에러 응답에서 데이터 추출
+      const responseData = err.response?.data || {};
       const errorMessage =
-        err.response?.data?.message || err.message || "알 수 없는 오류";
+        responseData.message || err.message || "알 수 없는 오류";
       setPlcTestResult({
         success: false,
         message: errorMessage,
+        mockMode: responseData.mockMode,
       });
       showMessage("error", `PLC 연결 실패: ${errorMessage}`);
     } finally {
@@ -187,17 +197,25 @@ export default function SettingsPage() {
     try {
       const res = await axios.get("/api/db-test");
       setDbTestResult({
-        success: true,
+        success: res.data.success !== false,
         message: res.data.message || "DB 연결에 성공했습니다.",
+        mockMode: res.data.mockMode,
       });
-      showMessage("success", res.data.message || "DB 연결에 성공했습니다.");
+      if (res.data.success !== false) {
+        showMessage("success", res.data.message || "DB 연결에 성공했습니다.");
+      } else {
+        showMessage("error", `DB 연결 실패: ${res.data.message}`);
+      }
     } catch (err: any) {
       console.error("DB connection test failed:", err);
+      // HTTP 에러 응답에서 데이터 추출
+      const responseData = err.response?.data || {};
       const errorMessage =
-        err.response?.data?.message || err.message || "알 수 없는 오류";
+        responseData.message || err.message || "알 수 없는 오류";
       setDbTestResult({
         success: false,
         message: errorMessage,
+        mockMode: responseData.mockMode,
       });
       showMessage("error", `DB 연결 실패: ${errorMessage}`);
     } finally {
@@ -364,14 +382,22 @@ export default function SettingsPage() {
                   <div
                     className={`p-3 rounded-lg border ${
                       plcTestResult.success
-                        ? "bg-green-500/10 border-green-500/30 text-green-600"
+                        ? plcTestResult.mockMode
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                          : "bg-green-500/10 border-green-500/30 text-green-600"
                         : "bg-red-500/10 border-red-500/30 text-red-600"
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       {plcTestResult.success ? (
-                        <div className="w-5 h-5 mt-0.5 text-green-600 flex-shrink-0">
-                          ✓
+                        <div
+                          className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                            plcTestResult.mockMode
+                              ? "text-blue-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {plcTestResult.mockMode ? "⚡" : "✓"}
                         </div>
                       ) : (
                         <div className="w-5 h-5 mt-0.5 text-red-600 flex-shrink-0">
@@ -380,7 +406,11 @@ export default function SettingsPage() {
                       )}
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {plcTestResult.success ? "연결 성공" : "연결 실패"}
+                          {plcTestResult.success
+                            ? plcTestResult.mockMode
+                              ? "Mock 모드"
+                              : "연결 성공"
+                            : "연결 실패"}
                         </p>
                         <p className="text-xs opacity-80 mt-1">
                           {plcTestResult.message}
@@ -545,14 +575,22 @@ export default function SettingsPage() {
                   <div
                     className={`p-3 rounded-lg border ${
                       dbTestResult.success
-                        ? "bg-green-500/10 border-green-500/30 text-green-600"
+                        ? dbTestResult.mockMode
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                          : "bg-green-500/10 border-green-500/30 text-green-600"
                         : "bg-red-500/10 border-red-500/30 text-red-600"
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       {dbTestResult.success ? (
-                        <div className="w-5 h-5 mt-0.5 text-green-600 flex-shrink-0">
-                          ✓
+                        <div
+                          className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                            dbTestResult.mockMode
+                              ? "text-blue-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {dbTestResult.mockMode ? "⚡" : "✓"}
                         </div>
                       ) : (
                         <div className="w-5 h-5 mt-0.5 text-red-600 flex-shrink-0">
@@ -561,7 +599,11 @@ export default function SettingsPage() {
                       )}
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {dbTestResult.success ? "연결 성공" : "연결 실패"}
+                          {dbTestResult.success
+                            ? dbTestResult.mockMode
+                              ? "Mock 모드"
+                              : "연결 성공"
+                            : "연결 실패"}
                         </p>
                         <p className="text-xs opacity-80 mt-1">
                           {dbTestResult.message}

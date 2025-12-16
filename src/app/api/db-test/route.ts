@@ -29,7 +29,7 @@
  * }
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/services/db";
 import { logger } from "@/lib/services/logger";
 
@@ -37,17 +37,32 @@ import { logger } from "@/lib/services/logger";
  * GET /api/db-test
  * 데이터베이스 연결 테스트
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // DB 상태 확인 (실제 연결 테스트 수행)
+    // 1. Mock 모드 확인
+    if (db.isMockMode) {
+      logger.log("INFO", "API", "DB Mock 모드 테스트 수행");
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "DB Mock 모드로 실행 중입니다. (실제 연결 없음)",
+          mockMode: true,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 2. 실제 DB 모드: 연결 테스트 수행
     await db.testConnection();
 
-    logger.log("INFO", "API", "DB 연결 테스트 수행");
+    logger.log("INFO", "API", "DB 연결 테스트 수행 성공");
 
     return NextResponse.json(
       {
         success: true,
         message: "DB 연결에 성공했습니다.",
+        mockMode: false,
       },
       { status: 200 }
     );
@@ -61,6 +76,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         message: `DB 연결에 실패했습니다: ${errorMessage}`,
+        mockMode: db.isMockMode,
       },
       { status: 500 }
     );

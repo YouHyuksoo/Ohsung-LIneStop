@@ -29,7 +29,7 @@
  * }
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { plc } from "@/lib/services/plc";
 import { logger } from "@/lib/services/logger";
 
@@ -37,26 +37,43 @@ import { logger } from "@/lib/services/logger";
  * GET /api/plc-test
  * PLC 연결 테스트
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // 1. 강제 재연결 시도
+    // 1. Mock 모드 확인
+    if (plc.isMockMode) {
+      const status = await plc.readStatus();
+      logger.log("INFO", "API", "PLC Mock 모드 테스트 수행");
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "PLC Mock 모드로 실행 중입니다. (실제 연결 없음)",
+          status: status,
+          mockMode: true,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 2. 실제 PLC 모드: 강제 재연결 시도
     await plc.connect();
 
-    // 2. 연결 상태 확인
-    if (!plc.connected && !plc.isMockMode) {
+    // 3. 연결 상태 확인 (실제 모드)
+    if (!plc.connected) {
       throw new Error("연결 실패 (Timeout 또는 네트워크 오류)");
     }
 
-    // 3. 상태 읽기 시도
+    // 4. 상태 읽기 시도
     const status = await plc.readStatus();
 
-    logger.log("INFO", "API", "PLC 연결 테스트 수행");
+    logger.log("INFO", "API", "PLC 연결 테스트 수행 성공");
 
     return NextResponse.json(
       {
         success: true,
         message: "PLC 연결에 성공했습니다.",
         status: status,
+        mockMode: false,
       },
       { status: 200 }
     );
@@ -70,8 +87,9 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         message: `PLC 연결에 실패했습니다: ${errorMessage}`,
+        mockMode: plc.isMockMode,
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 }
