@@ -34,6 +34,7 @@ import {
   Cpu,
   Database,
   Settings as SettingsIcon,
+  Network,
 } from "lucide-react";
 import axios from "axios";
 // import ProtectedRoute from "@/components/ProtectedRoute"; // Login feature removed
@@ -92,6 +93,12 @@ export default function SettingsPage() {
     message: string;
     mockMode?: boolean;
   } | null>(null);
+  const [icmpTestResult, setIcmpTestResult] = useState<{
+    success: boolean;
+    message: string;
+    mockMode?: boolean;
+  } | null>(null);
+  const [testingICMP, setTestingICMP] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -220,6 +227,40 @@ export default function SettingsPage() {
       showMessage("error", `DB 연결 실패: ${errorMessage}`);
     } finally {
       setTestingDB(false);
+    }
+  };
+
+  /**
+   * ICMP Ping 테스트 함수
+   */
+  const testICMPConnection = async () => {
+    setTestingICMP(true);
+    setIcmpTestResult(null);
+    try {
+      const res = await axios.get("/api/plc-test?step=icmp");
+      setIcmpTestResult({
+        success: res.data.success !== false,
+        message: res.data.message || "ICMP Ping 성공",
+        mockMode: res.data.mockMode,
+      });
+      if (res.data.success !== false) {
+        showMessage("success", res.data.message || "ICMP Ping 성공");
+      } else {
+        showMessage("error", `ICMP Ping 실패: ${res.data.message}`);
+      }
+    } catch (err: any) {
+      console.error("ICMP Ping test failed:", err);
+      const responseData = err.response?.data || {};
+      const errorMessage =
+        responseData.message || err.message || "알 수 없는 오류";
+      setIcmpTestResult({
+        success: false,
+        message: errorMessage,
+        mockMode: responseData.mockMode,
+      });
+      showMessage("error", `ICMP Ping 실패: ${errorMessage}`);
+    } finally {
+      setTestingICMP(false);
     }
   };
 
@@ -414,6 +455,67 @@ export default function SettingsPage() {
                         </p>
                         <p className="text-xs opacity-80 mt-1">
                           {plcTestResult.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ICMP Ping 테스트 버튼 */}
+                <button
+                  onClick={testICMPConnection}
+                  disabled={testingICMP}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-500/10 text-slate-500 border border-slate-500/20 hover:bg-slate-500/20 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {testingICMP ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                      테스트 중...
+                    </>
+                  ) : (
+                    <>
+                      <Network className="w-5 h-5" />
+                      ICMP Ping (단순 연결 확인)
+                    </>
+                  )}
+                </button>
+                {/* ICMP 테스트 결과 */}
+                {icmpTestResult && (
+                  <div
+                    className={`p-3 rounded-lg border ${
+                      icmpTestResult.success
+                        ? icmpTestResult.mockMode
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                          : "bg-green-500/10 border-green-500/30 text-green-600"
+                        : "bg-red-500/10 border-red-500/30 text-red-600"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {icmpTestResult.success ? (
+                        <div
+                          className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                            icmpTestResult.mockMode
+                              ? "text-blue-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {icmpTestResult.mockMode ? "⚡" : "✓"}
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 mt-0.5 text-red-600 flex-shrink-0">
+                          ✕
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {icmpTestResult.success
+                            ? icmpTestResult.mockMode
+                              ? "Mock 모드"
+                              : "ICMP Ping 성공"
+                            : "ICMP Ping 실패"}
+                        </p>
+                        <p className="text-xs opacity-80 mt-1">
+                          {icmpTestResult.message}
                         </p>
                       </div>
                     </div>

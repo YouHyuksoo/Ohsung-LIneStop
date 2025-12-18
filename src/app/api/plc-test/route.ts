@@ -89,10 +89,27 @@ export async function GET(request: NextRequest) {
     }
 
     // ==========================================
+    // 0단계: ICMP Ping 테스트 (시스템 Ping)
+    // ==========================================
+    if (step === "icmp") {
+      logger.log("INFO", "API", "🔍 ICMP Ping 테스트 시작");
+      const result = await plc.testIcmpPing();
+      return NextResponse.json(
+        {
+          step: "icmp",
+          success: result.success,
+          message: result.message,
+          mockMode: false,
+        },
+        { status: result.success ? 200 : 500 }
+      );
+    }
+
+    // ==========================================
     // 1단계: Ping 테스트
     // ==========================================
     if (step === "ping" || step === "all") {
-      logger.log("INFO", "API", "🔍 PLC Ping 테스트 시작");
+      logger.log("INFO", "API", "🔍 PLC Port Ping 테스트 시작");
 
       const pingResult = await plc.testPing();
 
@@ -114,7 +131,7 @@ export async function GET(request: NextRequest) {
         logger.log(
           "WARN",
           "API",
-          `🔍 Ping 테스트 실패 - 접속 테스트 스킵: ${pingResult.message}`
+          `🔍 Port Ping 테스트 실패 - 접속 테스트 스킵: ${pingResult.message}`
         );
 
         return NextResponse.json(
@@ -122,7 +139,7 @@ export async function GET(request: NextRequest) {
             step: "all",
             stages: [
               {
-                name: "Ping 테스트",
+                name: "Port Ping 테스트",
                 success: false,
                 message: pingResult.message,
                 latency: pingResult.latency,
@@ -130,7 +147,7 @@ export async function GET(request: NextRequest) {
               {
                 name: "접속 테스트",
                 success: false,
-                message: "Ping 테스트 실패로 인해 스킵됨",
+                message: "Port Ping 테스트 실패로 인해 스킵됨",
               },
             ],
             success: false,
@@ -147,7 +164,7 @@ export async function GET(request: NextRequest) {
       logger.log(
         "INFO",
         "API",
-        `🔍 Ping 성공! (${pingResult.latency}ms) - 🔌 접속 테스트 시작`
+        `🔍 Port Ping 성공! (${pingResult.latency}ms) - 🔌 접속 테스트 시작`
       );
 
       const connectionResult = await plc.testConnection();
@@ -163,7 +180,7 @@ export async function GET(request: NextRequest) {
           step: "all",
           stages: [
             {
-              name: "Ping 테스트",
+              name: "Port Ping 테스트",
               success: true,
               message: pingResult.message,
               latency: pingResult.latency,
@@ -207,7 +224,7 @@ export async function GET(request: NextRequest) {
 
     // 잘못된 step 파라미터
     throw new Error(
-      `잘못된 step 파라미터: ${step} (ping, connect, all만 허용)`
+      `잘못된 step 파라미터: ${step} (icmp, ping, connect, all만 허용)`
     );
   } catch (error) {
     const errorMessage =

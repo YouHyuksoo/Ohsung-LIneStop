@@ -47,6 +47,7 @@
 import { logger } from "./logger";
 import fs from "fs";
 import path from "path";
+import { exec } from "child_process";
 
 // MC Protocol 라이브러리 (CommonJS)
 let MCProtocol: any;
@@ -160,7 +161,7 @@ class PLC {
           socket.destroy();
           resolve({
             success: false,
-            message: `Ping 타임아웃 (5초 이내 응답 없음)`,
+            message: `연결 타임아웃 (5초 이내 응답 없음) - IP를 확인하세요.`,
           });
         }, 5000);
 
@@ -170,16 +171,24 @@ class PLC {
           socket.destroy();
           resolve({
             success: true,
-            message: `Ping 성공 (${this.ip}:${this.port})`,
+            message: `포트 연결 성공 (${this.ip}:${this.port})`,
             latency,
           });
         });
 
         socket.on("error", (err: any) => {
           clearTimeout(timeout);
+          let failureMessage = `연결 실패: ${err.code || err.message}`;
+
+          if (err.code === "ECONNREFUSED") {
+            failureMessage = `Ping은 되지만 포트(${this.port})가 닫혀있습니다. (ECONNREFUSED) - PLC 설정을 확인하세요.`;
+          } else if (err.code === "EHOSTUNREACH") {
+            failureMessage = `IP 주소(${this.ip})에 도달할 수 없습니다. (EHOSTUNREACH)`;
+          }
+
           resolve({
             success: false,
-            message: `Ping 실패: ${err.code || err.message}`,
+            message: failureMessage,
           });
         });
 
@@ -193,9 +202,55 @@ class PLC {
       );
       return pingResult;
     } catch (error) {
-      logger.log("ERROR", "PLC", `Ping 테스트 중 예외 발생: ${error}`);
+      logger.log("ERROR", "PLC", `Port 테스트 중 예외 발생: ${error}`);
       return { success: false, message: `예외: ${error}` };
     }
+  }
+
+  /**
+   * ⭐ NEW: ICMP Ping 테스트를 수행합니다 (시스템 Ping 명령어 사용)
+   * 실제 IP 도달 가능성을 확인합니다 (TCP 포트 테스트 아님).
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async testIcmpPing(): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    if (this.mockMode) {
+      const message = `Mock 모드 상태 - ICMP Ping 테스트 불필요`;
+      logger.log("INFO", "PLC", `🔍 ICMP Ping 테스트: ${message}`);
+      return { success: true, message };
+    }
+
+    return new Promise((resolve) => {
+      // Windows: -n 1, Linux/Mac: -c 1
+      const command =
+        process.platform === "win32"
+          ? `ping -n 1 ${this.ip}`
+          : `ping -c 1 ${this.ip}`;
+
+      exec(command, (error, stdout) => {
+        if (error) {
+          logger.log("WARN", "PLC", `ICMP Ping 실패: ${error.message}`);
+          resolve({
+            success: false,
+            message: `ICMP Ping 실패: 대상 IP(${this.ip})에 도달할 수 없습니다.`,
+          });
+        } else {
+          // 윈도우 한글 인코딩 문제 등을 고려하여 단순 성공 메시지 반환
+          // stdout 로깅은 함
+          logger.log(
+            "INFO",
+            "PLC",
+            `ICMP Ping 성공 결과: ${stdout.toString()}`
+          );
+          resolve({
+            success: true,
+            message: `ICMP Ping 성공 (IP: ${this.ip} 도달 가능)`,
+          });
+        }
+      });
+    });
   }
 
   /**
@@ -223,10 +278,10 @@ class PLC {
     try {
       const testClient = new MCProtocol();
 
-      const connectionResult = await new Promise<{
+      // 1단계: 연결만 수행 (메서드 검증 없음)
+      const connectResult = await new Promise<{
         success: boolean;
         message: string;
-        version?: string;
       }>((resolve) => {
         const timeout = setTimeout(() => {
           resolve({
@@ -249,25 +304,68 @@ class PLC {
                 message: `MC Protocol 초기화 실패: ${err.message || err}`,
               });
             } else {
-              // 정상 연결 확인 - 실시간 데이터를 읽어서 검증
-              testClient.readPLCDevices(this.address, 1, (readErr: any) => {
-                if (readErr) {
-                  resolve({
-                    success: false,
-                    message: `PLC 데이터 읽기 실패: ${readErr.message || readErr}`,
-                  });
-                } else {
-                  resolve({
-                    success: true,
-                    message: `PLC 접속 성공 (${this.ip}:${this.port}, 주소: ${this.address})`,
-                    version: "MC Protocol 3E",
-                  });
-                }
+              resolve({
+                success: true,
+                message: `연결 성공`,
               });
             }
           }
         );
       });
+
+      if (!connectResult.success) {
+        logger.log("WARN", "PLC", `🔌 ${connectResult.message}`);
+        return {
+          success: false,
+          message: connectResult.message,
+        };
+      }
+
+      // 2단계: 연결 후 약간의 딜레이 추가 (안정화 대기)
+      await new Promise((res) => setTimeout(res, 500));
+
+      // 3단계: 데이터 읽기로 검증
+      const readResult = await new Promise<{
+        success: boolean;
+        message: string;
+      }>((resolve) => {
+        try {
+          if (typeof testClient.readPLCDevices !== "function") {
+            resolve({
+              success: false,
+              message: `readPLCDevices 메서드가 없습니다. mcprotocol 라이브러리 문제.`,
+            });
+            return;
+          }
+
+          testClient.readPLCDevices(this.address, 1, (readErr: any) => {
+            if (readErr) {
+              resolve({
+                success: false,
+                message: `PLC 데이터 읽기 실패: ${readErr.message || readErr}`,
+              });
+            } else {
+              resolve({
+                success: true,
+                message: `PLC 접속 성공`,
+              });
+            }
+          });
+        } catch (ex) {
+          resolve({
+            success: false,
+            message: `데이터 읽기 중 예외: ${ex}`,
+          });
+        }
+      });
+
+      const connectionResult = {
+        success: readResult.success,
+        message: readResult.success
+          ? `PLC 접속 성공 (${this.ip}:${this.port}, 주소: ${this.address})`
+          : readResult.message,
+        version: readResult.success ? "MC Protocol 3E" : undefined,
+      };
 
       logger.log(
         connectionResult.success ? "INFO" : "WARN",
