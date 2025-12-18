@@ -103,7 +103,8 @@ export default function SettingsPage() {
   const [plcControlResult, setPlcControlResult] = useState<{
     success: boolean;
     message: string;
-    action: number;
+    action?: number;
+    mockMode?: boolean;
   } | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -293,6 +294,7 @@ export default function SettingsPage() {
         success: res.data.success !== false,
         message: res.data.message || `PLC에 ${actionLabels[value]} 신호를 전송했습니다.`,
         action: value,
+        mockMode: res.data.mockMode || settings.mock?.plc,
       });
 
       if (res.data.success !== false) {
@@ -310,6 +312,7 @@ export default function SettingsPage() {
         success: false,
         message: errorMessage,
         action: value,
+        mockMode: settings.mock?.plc,
       });
       showMessage("error", `✕ ${actionLabels[value]} 신호 전송 실패: ${errorMessage}`);
     } finally {
@@ -580,6 +583,25 @@ export default function SettingsPage() {
                   <h3 className="text-sm font-medium text-foreground">
                     PLC 제어 테스트 (주소: {settings.plc?.address || "D7000"})
                   </h3>
+
+                  {/* Mock 모드 상태 표시 */}
+                  <div className={`p-3 rounded-lg border ${
+                    settings.mock?.plc
+                      ? "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                      : "bg-yellow-500/10 border-yellow-500/30 text-yellow-600"
+                  }`}>
+                    <p className="text-xs font-medium">
+                      {settings.mock?.plc
+                        ? "⚡ PLC Mock 모드 활성화됨"
+                        : "⚠️ 실제 PLC 모드 - 연결된 PLC가 필요합니다"}
+                    </p>
+                    <p className="text-xs opacity-80 mt-1">
+                      {settings.mock?.plc
+                        ? "테스트 버튼은 시뮬레이션으로 동작합니다"
+                        : "테스트 버튼은 실제 PLC에 명령을 전송합니다"}
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-2">
                     {/* 해제 (0) 버튼 */}
                     <button
@@ -629,14 +651,20 @@ export default function SettingsPage() {
                     <div
                       className={`p-3 rounded-lg border ${
                         plcControlResult.success
-                          ? "bg-green-500/10 border-green-500/30 text-green-600"
+                          ? plcControlResult.mockMode
+                            ? "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                            : "bg-green-500/10 border-green-500/30 text-green-600"
                           : "bg-red-500/10 border-red-500/30 text-red-600"
                       }`}
                     >
                       <div className="flex items-start gap-2">
                         {plcControlResult.success ? (
-                          <div className="w-5 h-5 mt-0.5 text-green-600 flex-shrink-0">
-                            ✓
+                          <div className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                            plcControlResult.mockMode
+                              ? "text-blue-600"
+                              : "text-green-600"
+                          }`}>
+                            {plcControlResult.mockMode ? "⚡" : "✓"}
                           </div>
                         ) : (
                           <div className="w-5 h-5 mt-0.5 text-red-600 flex-shrink-0">
@@ -645,7 +673,11 @@ export default function SettingsPage() {
                         )}
                         <div className="flex-1">
                           <p className="text-sm font-medium">
-                            {plcControlResult.success ? "전송 성공" : "전송 실패"}
+                            {plcControlResult.success
+                              ? plcControlResult.mockMode
+                                ? "Mock 모드 시뮬레이션"
+                                : "실제 PLC 전송 성공"
+                              : "전송 실패"}
                           </p>
                           <p className="text-xs opacity-80 mt-1">
                             {plcControlResult.message}
