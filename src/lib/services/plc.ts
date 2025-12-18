@@ -80,9 +80,7 @@ class PLC {
   private _stopReason: string = "";
   private ip: string = "192.168.151.27";
   private port: number = 5012;
-  // 주소 형식: D7000,1 = D7000 레지스터 1개 단어 (16비트)
-  // mcprotocol은 addItems/readAllItems/writeItems에서 이 형식을 사용
-  private address: string = "D7000,1";
+  private address: string = "D7000"; // 제어 및 상태용 단일 주소
   private settingsFile: string;
   private client: any = null;
   private isConnected: boolean = false;
@@ -296,7 +294,7 @@ class PLC {
           {
             host: this.ip,
             port: this.port,
-            ascii: false,
+            ascii: true,  // ASCII 모드 사용
           },
           (err: any) => {
             clearTimeout(timeout);
@@ -413,7 +411,7 @@ class PLC {
           {
             host: this.ip,
             port: this.port,
-            ascii: false,
+            ascii: true,  // ASCII 모드 사용 (Binary 모드의 버퍼 오프셋 오류 해결)
           },
           (err: any) => {
             if (err) {
