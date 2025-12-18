@@ -286,7 +286,7 @@ export default function SettingsPage() {
 
     try {
       const res = await axios.post("/api/plc-control", {
-        address: settings.plc?.address || "D7000",
+        address: settings.plc?.address || "D7000,1",
         value: value,
       });
 
@@ -435,7 +435,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    제어 주소 (Bit)
+                    제어 주소 (mcprotocol 형식)
                   </label>
                   <input
                     type="text"
@@ -451,7 +451,7 @@ export default function SettingsPage() {
                       })
                     }
                     className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
-                    placeholder="M100"
+                    placeholder="D7000,1"
                   />
                 </div>
               </div>
@@ -581,7 +581,7 @@ export default function SettingsPage() {
                 {/* PLC 제어 테스트 버튼 그룹 */}
                 <div className="pt-4 border-t border-border space-y-3">
                   <h3 className="text-sm font-medium text-foreground">
-                    PLC 제어 테스트 (주소: {settings.plc?.address || "D7000"})
+                    PLC 제어 테스트 (주소: {settings.plc?.address || "D7000,1"})
                   </h3>
 
                   {/* Mock 모드 상태 표시 */}

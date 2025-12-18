@@ -10,7 +10,7 @@
  *
  * Request Body:
  * {
- *   "address": "D7000",
+ *   "address": "D7000,1",  // mcprotocol 형식: D7000 1개 단어
  *   "value": 0 | 1 | 2
  * }
  */
