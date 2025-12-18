@@ -548,9 +548,10 @@ class PLC {
         }, 10000);
 
         try {
+          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
           this.client.writeItems(
             this.address,
-            PLC_VALUES.STOPPED,
+            [PLC_VALUES.STOPPED],
             (_qualityBad: any, _values: any) => {
               if (!callbackExecuted) {
                 callbackExecuted = true;
@@ -603,9 +604,10 @@ class PLC {
         }, 10000);
 
         try {
+          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
           this.client.writeItems(
             this.address,
-            PLC_VALUES.WARNING,
+            [PLC_VALUES.WARNING],
             (_qualityBad: any, _values: any) => {
               if (!callbackExecuted) {
                 callbackExecuted = true;
@@ -654,9 +656,10 @@ class PLC {
         }, 10000);
 
         try {
+          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
           this.client.writeItems(
             this.address,
-            PLC_VALUES.RUNNING,
+            [PLC_VALUES.RUNNING],
             (_qualityBad: any, _values: any) => {
               if (!callbackExecuted) {
                 callbackExecuted = true;

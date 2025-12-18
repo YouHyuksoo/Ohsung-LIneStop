@@ -141,7 +141,16 @@ export async function POST(request: NextRequest) {
         try {
           // mcprotocol writeItems 콜백: (qualityBad, values)
           // qualityBad가 true면 데이터에 문제가 있다는 의미 (에러 아님)
-          client.writeItems(address, value, (qualityBad: boolean, values: any) => {
+          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
+          const writeValue = Array.isArray(value) ? value : [value];
+
+          logger.log(
+            "DEBUG",
+            "API",
+            `PLC writeItems 호출: address=${address}, value=${JSON.stringify(writeValue)}`
+          );
+
+          client.writeItems(address, writeValue, (qualityBad: boolean, values: any) => {
             if (!callbackExecuted) {
               callbackExecuted = true;
               clearTimeout(timeout);
