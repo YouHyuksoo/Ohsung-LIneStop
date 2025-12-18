@@ -534,13 +534,15 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      await new Promise<void>((resolve, reject) => {
+      // 콜백의 첫 번째 파라미터는 qualityBad (boolean)
+      await new Promise<void>((resolve) => {
         this.client.writeItems(
           this.address,
           PLC_VALUES.STOPPED,
-          (err: any) => {
-            if (err) reject(err);
-            else resolve();
+          (_qualityBad: any, _values: any) => {
+            // qualityBad는 쓰기 품질 여부, values는 쓰기 결과
+            // 에러가 아니면 성공으로 처리
+            resolve();
           }
         );
       });
@@ -566,13 +568,12 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         this.client.writeItems(
           this.address,
           PLC_VALUES.WARNING,
-          (err: any) => {
-            if (err) reject(err);
-            else resolve();
+          (_qualityBad: any, _values: any) => {
+            resolve();
           }
         );
       });
@@ -594,13 +595,12 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         this.client.writeItems(
           this.address,
           PLC_VALUES.RUNNING,
-          (err: any) => {
-            if (err) reject(err);
-            else resolve();
+          (_qualityBad: any, _values: any) => {
+            resolve();
           }
         );
       });
