@@ -333,16 +333,19 @@ class PLC {
           // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
           testClient.addItems(this.address);
 
-          testClient.readAllItems((err: any, values: any) => {
-            if (err) {
-              resolve({
-                success: false,
-                message: `PLC 데이터 읽기 실패: ${err.message || err}`,
-              });
-            } else if (!values || Object.keys(values).length === 0) {
+          testClient.readAllItems((qualityBad: any, values: any) => {
+            // qualityBad는 boolean (ANY 데이터의 품질이 나쁜지 여부)
+            // values는 읽은 데이터 객체
+            if (!values || Object.keys(values).length === 0) {
               resolve({
                 success: false,
                 message: `PLC에서 데이터를 읽을 수 없습니다 (비어있음)`,
+              });
+            } else if (qualityBad === true) {
+              // 데이터 품질이 나쁘지만, 데이터는 있음 - 경고만 표시
+              resolve({
+                success: true,
+                message: `PLC 접속 성공 (데이터 품질 경고)`,
               });
             } else {
               resolve({
@@ -476,8 +479,10 @@ class PLC {
       const values = await new Promise<Record<string, any>>((resolve, reject) => {
         this.client.addItems(this.address);
 
-        this.client.readAllItems((err: any, data: any) => {
-          if (err) reject(err);
+        this.client.readAllItems((_qualityBad: any, data: any) => {
+          // _qualityBad는 boolean (데이터 품질 - 사용하지 않음)
+          // data는 읽은 값들의 객체
+          if (!data) reject(new Error("No data returned"));
           else resolve(data);
         });
       });
