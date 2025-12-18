@@ -99,6 +99,12 @@ export default function SettingsPage() {
     mockMode?: boolean;
   } | null>(null);
   const [testingICMP, setTestingICMP] = useState(false);
+  const [testingPLCControl, setTestingPLCControl] = useState<0 | 1 | 2 | null>(null);
+  const [plcControlResult, setPlcControlResult] = useState<{
+    success: boolean;
+    message: string;
+    action: number;
+  } | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -261,6 +267,53 @@ export default function SettingsPage() {
       showMessage("error", `ICMP Ping 실패: ${errorMessage}`);
     } finally {
       setTestingICMP(false);
+    }
+  };
+
+  /**
+   * PLC 제어 테스트 함수 (0: 해제, 1: 경고, 2: 정지)
+   */
+  const testPLCControl = async (value: 0 | 1 | 2) => {
+    setTestingPLCControl(value);
+    setPlcControlResult(null);
+
+    const actionLabels: Record<number, string> = {
+      0: "해제 (라인 가동)",
+      1: "경고 (알람)",
+      2: "정지",
+    };
+
+    try {
+      const res = await axios.post("/api/plc-control", {
+        address: settings.plc?.address || "D7000",
+        value: value,
+      });
+
+      setPlcControlResult({
+        success: res.data.success !== false,
+        message: res.data.message || `PLC에 ${actionLabels[value]} 신호를 전송했습니다.`,
+        action: value,
+      });
+
+      if (res.data.success !== false) {
+        showMessage("success", `✓ ${actionLabels[value]} 신호 전송 성공`);
+      } else {
+        showMessage("error", `✕ ${actionLabels[value]} 신호 전송 실패: ${res.data.message}`);
+      }
+    } catch (err: any) {
+      console.error("PLC control failed:", err);
+      const responseData = err.response?.data || {};
+      const errorMessage =
+        responseData.message || err.message || "알 수 없는 오류";
+
+      setPlcControlResult({
+        success: false,
+        message: errorMessage,
+        action: value,
+      });
+      showMessage("error", `✕ ${actionLabels[value]} 신호 전송 실패: ${errorMessage}`);
+    } finally {
+      setTestingPLCControl(null);
     }
   };
 
@@ -521,6 +574,87 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* PLC 제어 테스트 버튼 그룹 */}
+                <div className="pt-4 border-t border-border space-y-3">
+                  <h3 className="text-sm font-medium text-foreground">
+                    PLC 제어 테스트 (주소: {settings.plc?.address || "D7000"})
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* 해제 (0) 버튼 */}
+                    <button
+                      onClick={() => testPLCControl(0)}
+                      disabled={testingPLCControl !== null}
+                      className="flex items-center justify-center gap-1 px-3 py-2 bg-green-500/10 text-green-600 border border-green-500/20 hover:bg-green-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {testingPLCControl === 0 ? (
+                        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        "0️⃣"
+                      )}
+                      {testingPLCControl === 0 ? "중..." : "해제"}
+                    </button>
+
+                    {/* 경고 (1) 버튼 */}
+                    <button
+                      onClick={() => testPLCControl(1)}
+                      disabled={testingPLCControl !== null}
+                      className="flex items-center justify-center gap-1 px-3 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 hover:bg-yellow-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {testingPLCControl === 1 ? (
+                        <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        "1️⃣"
+                      )}
+                      {testingPLCControl === 1 ? "중..." : "경고"}
+                    </button>
+
+                    {/* 정지 (2) 버튼 */}
+                    <button
+                      onClick={() => testPLCControl(2)}
+                      disabled={testingPLCControl !== null}
+                      className="flex items-center justify-center gap-1 px-3 py-2 bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {testingPLCControl === 2 ? (
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        "2️⃣"
+                      )}
+                      {testingPLCControl === 2 ? "중..." : "정지"}
+                    </button>
+                  </div>
+
+                  {/* PLC 제어 결과 */}
+                  {plcControlResult && (
+                    <div
+                      className={`p-3 rounded-lg border ${
+                        plcControlResult.success
+                          ? "bg-green-500/10 border-green-500/30 text-green-600"
+                          : "bg-red-500/10 border-red-500/30 text-red-600"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {plcControlResult.success ? (
+                          <div className="w-5 h-5 mt-0.5 text-green-600 flex-shrink-0">
+                            ✓
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 mt-0.5 text-red-600 flex-shrink-0">
+                            ✕
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">
+                            {plcControlResult.success ? "전송 성공" : "전송 실패"}
+                          </p>
+                          <p className="text-xs opacity-80 mt-1">
+                            {plcControlResult.message}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

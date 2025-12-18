@@ -21,7 +21,8 @@
       "Bash(del /f /q \"src\\lib\\store\\session-store.ts\")",
       "Bash(curl:*)",
       "Bash(pkill -f \"npm run dev\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
