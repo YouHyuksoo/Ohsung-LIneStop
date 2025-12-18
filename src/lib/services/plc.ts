@@ -330,19 +330,19 @@ class PLC {
         message: string;
       }>((resolve) => {
         try {
-          if (typeof testClient.readPLCDevices !== "function") {
-            resolve({
-              success: false,
-              message: `readPLCDevices 메서드가 없습니다. mcprotocol 라이브러리 문제.`,
-            });
-            return;
-          }
+          // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
+          testClient.addItems(this.address);
 
-          testClient.readPLCDevices(this.address, 1, (readErr: any) => {
-            if (readErr) {
+          testClient.readAllItems((err: any, values: any) => {
+            if (err) {
               resolve({
                 success: false,
-                message: `PLC 데이터 읽기 실패: ${readErr.message || readErr}`,
+                message: `PLC 데이터 읽기 실패: ${err.message || err}`,
+              });
+            } else if (!values || Object.keys(values).length === 0) {
+              resolve({
+                success: false,
+                message: `PLC에서 데이터를 읽을 수 없습니다 (비어있음)`,
               });
             } else {
               resolve({
@@ -472,41 +472,40 @@ class PLC {
     }
 
     try {
-      // Callback 방식을 Promise로 변환
-      const values = await new Promise<number[]>((resolve, reject) => {
-        // 메서드 존재 여부 방어 코드
-        if (typeof this.client.readPLCDevices !== "function") {
-          reject(
-            new Error(
-              `readPLCDevices is not a function. Client keys: ${Object.keys(
-                this.client
-              ).join(", ")}`
-            )
-          );
-          return;
-        }
+      // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
+      const values = await new Promise<Record<string, any>>((resolve, reject) => {
+        this.client.addItems(this.address);
 
-        this.client.readPLCDevices(this.address, 1, (err: any, data: any) => {
+        this.client.readAllItems((err: any, data: any) => {
           if (err) reject(err);
           else resolve(data);
         });
       });
 
-      const statusValue = values[0];
-      switch (statusValue) {
-        case PLC_VALUES.STOPPED:
-          return "STOPPED";
-        case PLC_VALUES.WARNING:
-          return "WARNING";
-        default:
-          return "RUNNING";
+      // values는 { [address]: value } 형태
+      const statusValue = values[this.address];
+      if (Array.isArray(statusValue)) {
+        // 배열인 경우 첫 번째 요소 사용
+        switch (statusValue[0]) {
+          case PLC_VALUES.STOPPED:
+            return "STOPPED";
+          case PLC_VALUES.WARNING:
+            return "WARNING";
+          default:
+            return "RUNNING";
+        }
+      } else {
+        // 단일 값인 경우
+        switch (statusValue) {
+          case PLC_VALUES.STOPPED:
+            return "STOPPED";
+          case PLC_VALUES.WARNING:
+            return "WARNING";
+          default:
+            return "RUNNING";
+        }
       }
     } catch (error) {
-      // 연결 끊김 등으로 인한 에러 처리
-      if (String(error).includes("function")) {
-        // 함수가 없으면 라이브러리 문제일 수 있음
-        logger.log("ERROR", "PLC", `라이브러리 메서드 오류: ${error}`);
-      }
       logger.log("ERROR", "PLC", `상태 읽기 실패: ${error}`);
       this.isConnected = false;
       return "RUNNING";
@@ -529,10 +528,11 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
+      // mcprotocol 라이브러리는 writeItems 사용
       await new Promise<void>((resolve, reject) => {
-        this.client.writePLCDevices(
+        this.client.writeItems(
           this.address,
-          [PLC_VALUES.STOPPED],
+          PLC_VALUES.STOPPED,
           (err: any) => {
             if (err) reject(err);
             else resolve();
@@ -560,10 +560,11 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
+      // mcprotocol 라이브러리는 writeItems 사용
       await new Promise<void>((resolve, reject) => {
-        this.client.writePLCDevices(
+        this.client.writeItems(
           this.address,
-          [PLC_VALUES.WARNING],
+          PLC_VALUES.WARNING,
           (err: any) => {
             if (err) reject(err);
             else resolve();
@@ -587,10 +588,11 @@ class PLC {
     if (!this.isConnected) await this.connect();
 
     try {
+      // mcprotocol 라이브러리는 writeItems 사용
       await new Promise<void>((resolve, reject) => {
-        this.client.writePLCDevices(
+        this.client.writeItems(
           this.address,
-          [PLC_VALUES.RUNNING],
+          PLC_VALUES.RUNNING,
           (err: any) => {
             if (err) reject(err);
             else resolve();
