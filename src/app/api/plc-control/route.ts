@@ -113,18 +113,66 @@ export async function POST(request: NextRequest) {
 
     try {
       // mcprotocol의 writeItems 사용
-      await new Promise<void>((resolve, reject) => {
+      // 주소 형식: "D7000" (문자열)
+      // 값: 0, 1, 2 (정수)
+      // 콜백: (qualityBad, values) - qualityBad는 데이터 품질 지표 (boolean)
+      const writePromise = new Promise<void>((resolve, reject) => {
         const client = (plc as any).client;
         if (!client) {
           reject(new Error("PLC 클라이언트가 초기화되지 않았습니다"));
           return;
         }
 
-        client.writeItems(address, value, (err: any) => {
-          if (err) reject(err);
-          else resolve();
-        });
+        let callbackExecuted = false;
+
+        // 타임아웃 설정 (10초)
+        const timeout = setTimeout(() => {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            logger.log(
+              "WARN",
+              "API",
+              `PLC 제어 타임아웃: ${address}에 ${value} 쓰기 (10초 응답 없음)`
+            );
+            reject(new Error(`PLC write timeout (${address}에 10초 응답 없음)`));
+          }
+        }, 10000);
+
+        try {
+          // mcprotocol writeItems 콜백: (qualityBad, values)
+          // qualityBad가 true면 데이터에 문제가 있다는 의미 (에러 아님)
+          client.writeItems(address, value, (qualityBad: boolean, values: any) => {
+            if (!callbackExecuted) {
+              callbackExecuted = true;
+              clearTimeout(timeout);
+
+              if (qualityBad) {
+                logger.log(
+                  "WARN",
+                  "API",
+                  `PLC 제어: 데이터 품질 경고 (${address}에 ${value} 쓰기) - qualityBad: true`
+                );
+              } else {
+                logger.log(
+                  "DEBUG",
+                  "API",
+                  `PLC 제어: 쓰기 성공 (${address}에 ${value})`
+                );
+              }
+              // 어쨌든 resolve (qualityBad가 true여도 쓰기 자체는 성공함)
+              resolve();
+            }
+          });
+        } catch (err) {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            clearTimeout(timeout);
+            reject(err);
+          }
+        }
       });
+
+      await writePromise;
 
       logger.log(
         "INFO",
@@ -143,16 +191,19 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       logger.log(
         "ERROR",
         "API",
-        `PLC 제어 실패: ${address}에 ${value} 쓰기 - ${error}`
+        `PLC 제어 실패: ${address}에 ${value} 쓰기 - ${errorMessage}`
       );
 
       return NextResponse.json(
         {
           success: false,
-          message: `PLC에 값을 쓸 수 없습니다: ${error}`,
+          message: `PLC에 값을 쓸 수 없습니다: ${errorMessage}`,
           address,
           value,
         },

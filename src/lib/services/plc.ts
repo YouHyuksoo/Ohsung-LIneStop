@@ -534,17 +534,38 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      // 콜백의 첫 번째 파라미터는 qualityBad (boolean)
-      await new Promise<void>((resolve) => {
-        this.client.writeItems(
-          this.address,
-          PLC_VALUES.STOPPED,
-          (_qualityBad: any, _values: any) => {
-            // qualityBad는 쓰기 품질 여부, values는 쓰기 결과
-            // 에러가 아니면 성공으로 처리
-            resolve();
+      // 콜백: (qualityBad, values) - qualityBad는 boolean
+      await new Promise<void>((resolve, reject) => {
+        let callbackExecuted = false;
+
+        // 타임아웃 설정 (10초)
+        const timeout = setTimeout(() => {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            logger.log("WARN", "PLC", `라인 정지 명령 타임아웃 (10초 응답 없음)`);
+            reject(new Error(`stopLine timeout`));
           }
-        );
+        }, 10000);
+
+        try {
+          this.client.writeItems(
+            this.address,
+            PLC_VALUES.STOPPED,
+            (_qualityBad: any, _values: any) => {
+              if (!callbackExecuted) {
+                callbackExecuted = true;
+                clearTimeout(timeout);
+                resolve();
+              }
+            }
+          );
+        } catch (err) {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            clearTimeout(timeout);
+            reject(err);
+          }
+        }
       });
     } catch (error) {
       logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
@@ -568,14 +589,38 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      await new Promise<void>((resolve) => {
-        this.client.writeItems(
-          this.address,
-          PLC_VALUES.WARNING,
-          (_qualityBad: any, _values: any) => {
-            resolve();
+      // 콜백: (qualityBad, values) - qualityBad는 boolean
+      await new Promise<void>((resolve, reject) => {
+        let callbackExecuted = false;
+
+        // 타임아웃 설정 (10초)
+        const timeout = setTimeout(() => {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            logger.log("WARN", "PLC", `라인 경고 명령 타임아웃 (10초 응답 없음)`);
+            reject(new Error(`warnLine timeout`));
           }
-        );
+        }, 10000);
+
+        try {
+          this.client.writeItems(
+            this.address,
+            PLC_VALUES.WARNING,
+            (_qualityBad: any, _values: any) => {
+              if (!callbackExecuted) {
+                callbackExecuted = true;
+                clearTimeout(timeout);
+                resolve();
+              }
+            }
+          );
+        } catch (err) {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            clearTimeout(timeout);
+            reject(err);
+          }
+        }
       });
     } catch (error) {
       logger.log("ERROR", "PLC", `경고 명령 전송 실패: ${error}`);
@@ -595,14 +640,38 @@ class PLC {
 
     try {
       // mcprotocol 라이브러리는 writeItems 사용
-      await new Promise<void>((resolve) => {
-        this.client.writeItems(
-          this.address,
-          PLC_VALUES.RUNNING,
-          (_qualityBad: any, _values: any) => {
-            resolve();
+      // 콜백: (qualityBad, values) - qualityBad는 boolean
+      await new Promise<void>((resolve, reject) => {
+        let callbackExecuted = false;
+
+        // 타임아웃 설정 (10초)
+        const timeout = setTimeout(() => {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            logger.log("WARN", "PLC", `라인 재가동 명령 타임아웃 (10초 응답 없음)`);
+            reject(new Error(`resetLine timeout`));
           }
-        );
+        }, 10000);
+
+        try {
+          this.client.writeItems(
+            this.address,
+            PLC_VALUES.RUNNING,
+            (_qualityBad: any, _values: any) => {
+              if (!callbackExecuted) {
+                callbackExecuted = true;
+                clearTimeout(timeout);
+                resolve();
+              }
+            }
+          );
+        } catch (err) {
+          if (!callbackExecuted) {
+            callbackExecuted = true;
+            clearTimeout(timeout);
+            reject(err);
+          }
+        }
       });
     } catch (error) {
       logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
