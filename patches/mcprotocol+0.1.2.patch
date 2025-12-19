@@ -1,0 +1,64 @@
+diff --git a/node_modules/mcprotocol/mcprotocol.js b/node_modules/mcprotocol/mcprotocol.js
+index 6f85f87..aa866b7 100644
+--- a/node_modules/mcprotocol/mcprotocol.js
++++ b/node_modules/mcprotocol/mcprotocol.js
+@@ -119,6 +119,18 @@ MCProtocol.prototype.initiateConnection = function (cParam, callback) {
+ 	} else {
+ 		self.octalInputOutput = cParam.octalInputOutput;
+ 	}
++	// Network number 설정 (기본값: 0)
++	if (typeof(cParam.network) === 'undefined') {
++		self.network = 0x00;
++	} else {
++		self.network = cParam.network;
++	}
++	// Station number 설정 (기본값: 255)
++	if (typeof(cParam.station) === 'undefined') {
++		self.station = 0xff;
++	} else {
++		self.station = cParam.station;
++	}
+ 	self.connectionParams = cParam;
+ 	self.connectCallback = callback;
+ 	self.connectCBIssued = false;
+@@ -776,7 +788,7 @@ MCProtocol.prototype.sendReadPacket = function() {
+ 		// The FOR loop is left in here for now, but really we are only doing one request per packet for now.  
+ 		for (j = 0; j < self.readPacketArray[i].itemList.length; j++) {
+ 			if (self.frame == '3E') {
+-				returnedBfr = MCAddrToBuffer3E(self.readPacketArray[i].itemList[j],false /* not writing */,self.isAscii);
++				returnedBfr = MCAddrToBuffer3E(self.readPacketArray[i].itemList[j],false /* not writing */,self.isAscii,self.network,self.station);
+ 			} else {
+ 				returnedBfr = MCAddrToBuffer1E(self.readPacketArray[i].itemList[j],false /* not writing */,self.isAscii);
+ 			}
+@@ -864,7 +876,7 @@ MCProtocol.prototype.sendWritePacket = function() {
+ 		dataBufferPointer = 0;
+ 		for (var j = 0; j < self.writePacketArray[i].itemList.length; j++) {
+ 			if (self.frame == '3E') {
+-				returnedBfr = MCAddrToBuffer3E(self.writePacketArray[i].itemList[j], true /* writing */,self.isAscii);
++				returnedBfr = MCAddrToBuffer3E(self.writePacketArray[i].itemList[j], true /* writing */,self.isAscii,self.network,self.station);
+ 			} else {
+ 				returnedBfr = MCAddrToBuffer1E(self.writePacketArray[i].itemList[j], true /* writing */,self.isAscii);
+ 			}
+@@ -1900,15 +1912,19 @@ function MCAddrToBuffer1E(addrinfo, isWriting, isAscii) {
+ 	return MCCommand.slice(0,12+writeLength); // WriteLength is the length we write.  writeLength - 1 is the data length.  
+ }
+ 
+-function MCAddrToBuffer3E(addrinfo, isWriting, isAscii) { 
++function MCAddrToBuffer3E(addrinfo, isWriting, isAscii, network, station) {
+ 	var headerLength, writeLength, MCCommand = new Buffer(300);  // 12 is max length with all fields at max.
+ 
++	// network와 station 기본값 설정
++	if (typeof(network) === 'undefined') { network = 0x00; }
++	if (typeof(station) === 'undefined') { station = 0xff; }
++
+ 	headerLength = 11; // Length before
+ 
+ 	MCCommand[0] = 0x50; // Subheader byte 0
+ 	MCCommand[1] = 0x00; // Subheader byte 1
+-	MCCommand[2] = 0x00; // Network number
+-	MCCommand[3] = 0xff; // Destination station number
++	MCCommand[2] = network; // Network number (설정 가능)
++	MCCommand[3] = station; // Destination station number (설정 가능)
+ 	if (isAscii) { // Destination module IO number
+ 		MCCommand.writeUInt16BE(0x03ff, 4);
+ 	} else {

@@ -82,6 +82,8 @@ class PLC {
   private port: number = 5012;
   private address: string = "D7000"; // 제어 및 상태용 단일 주소
   private asciiMode: boolean = true; // ASCII 모드 (true) / Binary 모드 (false)
+  private network: number = 1; // 네트워크 번호 (기본값: 1)
+  private station: number = 0; // 스테이션 번호 (기본값: 0)
   private settingsFile: string;
   private client: any = null;
   private isConnected: boolean = false;
@@ -114,6 +116,14 @@ class PLC {
           this.address = settings.plc.address || this.address;
           if (typeof settings.plc.ascii === "boolean") {
             this.asciiMode = settings.plc.ascii;
+          }
+          // 네트워크 번호 로드 (기본값: 1)
+          if (typeof settings.plc.network === "number") {
+            this.network = settings.plc.network;
+          }
+          // 스테이션 번호 로드 (기본값: 0)
+          if (typeof settings.plc.station === "number") {
+            this.station = settings.plc.station;
           }
         }
 
@@ -284,7 +294,7 @@ class PLC {
     logger.log(
       "DEBUG",
       "PLC",
-      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, 주소: ${this.address}`
+      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, Net: ${this.network}, Stn: ${this.station}, 주소: ${this.address}`
     );
 
     try {
@@ -308,6 +318,8 @@ class PLC {
             port: this.port,
             ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
             octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
+            network: this.network,  // 네트워크 번호
+            station: this.station,  // 스테이션 번호
           },
           (err: any) => {
             clearTimeout(timeout);
@@ -319,7 +331,7 @@ class PLC {
             } else {
               resolve({
                 success: true,
-                message: `연결 성공 (${this.asciiMode ? "ASCII" : "Binary"} 모드)`,
+                message: `연결 성공 (${this.asciiMode ? "ASCII" : "Binary"} 모드, Net:${this.network}, Stn:${this.station})`,
               });
             }
           }
@@ -455,6 +467,8 @@ class PLC {
             port: this.port,
             ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
             octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
+            network: this.network,  // 네트워크 번호
+            station: this.station,  // 스테이션 번호
           },
           (err: any) => {
             clearTimeout(timeout);
@@ -471,7 +485,7 @@ class PLC {
       logger.log(
         "INFO",
         "PLC",
-        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address}, ${this.asciiMode ? "ASCII" : "Binary"} 모드)`
+        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address}, ${this.asciiMode ? "ASCII" : "Binary"} 모드, Net:${this.network}, Stn:${this.station})`
       );
     } catch (error) {
       this.isConnected = false;
