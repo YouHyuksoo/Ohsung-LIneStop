@@ -62,6 +62,7 @@ interface Settings {
     ip: string;
     port: number;
     address: string;
+    ascii?: boolean; // ASCII 모드 (true) / Binary 모드 (false)
   };
   db?: {
     host: string;
@@ -447,12 +448,65 @@ export default function SettingsPage() {
                           ip: settings.plc?.ip || "",
                           port: settings.plc?.port || 0,
                           address: e.target.value,
+                          ascii: settings.plc?.ascii ?? true,
                         },
                       })
                     }
                     className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
                     placeholder="D7000,1"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">
+                    PLC 통신 모드
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          plc: {
+                            ip: settings.plc?.ip || "",
+                            port: settings.plc?.port || 0,
+                            address: settings.plc?.address || "",
+                            ascii: true,
+                          },
+                        })
+                      }
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                        settings.plc?.ascii !== false
+                          ? "bg-blue-500/20 border-blue-500/50 text-blue-600"
+                          : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                      }`}
+                    >
+                      ASCII 모드
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          plc: {
+                            ip: settings.plc?.ip || "",
+                            port: settings.plc?.port || 0,
+                            address: settings.plc?.address || "",
+                            ascii: false,
+                          },
+                        })
+                      }
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                        settings.plc?.ascii === false
+                          ? "bg-purple-500/20 border-purple-500/50 text-purple-600"
+                          : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                      }`}
+                    >
+                      Binary 모드
+                    </button>
+                  </div>
+                  <p className="text-xs text-foreground/50 mt-2">
+                    {settings.plc?.ascii !== false
+                      ? "ASCII 모드 사용 중 (더 안정적인 텍스트 기반 통신)"
+                      : "Binary 모드 사용 중 (더 빠른 바이너리 통신)"}
+                  </p>
                 </div>
               </div>
               {/* PLC 연결 테스트 버튼 */}

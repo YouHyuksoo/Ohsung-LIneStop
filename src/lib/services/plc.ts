@@ -81,6 +81,7 @@ class PLC {
   private ip: string = "192.168.151.27";
   private port: number = 5012;
   private address: string = "D7000"; // 제어 및 상태용 단일 주소
+  private asciiMode: boolean = true; // ASCII 모드 (true) / Binary 모드 (false)
   private settingsFile: string;
   private client: any = null;
   private isConnected: boolean = false;
@@ -111,6 +112,9 @@ class PLC {
           this.ip = settings.plc.ip || this.ip;
           this.port = settings.plc.port || this.port;
           this.address = settings.plc.address || this.address;
+          if (typeof settings.plc.ascii === "boolean") {
+            this.asciiMode = settings.plc.ascii;
+          }
         }
 
         if (settings.mock && typeof settings.mock.plc === "boolean") {
@@ -294,7 +298,8 @@ class PLC {
           {
             host: this.ip,
             port: this.port,
-            ascii: true,  // ASCII 모드 사용
+            ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
+            octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
           },
           (err: any) => {
             clearTimeout(timeout);
@@ -306,7 +311,7 @@ class PLC {
             } else {
               resolve({
                 success: true,
-                message: `연결 성공`,
+                message: `연결 성공 (${this.asciiMode ? "ASCII" : "Binary"} 모드)`,
               });
             }
           }
@@ -411,7 +416,8 @@ class PLC {
           {
             host: this.ip,
             port: this.port,
-            ascii: true,  // ASCII 모드 사용 (Binary 모드의 버퍼 오프셋 오류 해결)
+            ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
+            octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
           },
           (err: any) => {
             if (err) {
