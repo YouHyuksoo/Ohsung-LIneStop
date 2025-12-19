@@ -319,8 +319,13 @@ class PLC {
       // 연결 종료
       await testClient.disconnect();
 
-      if (readResult.success) {
-        const value = readResult.results[this.address]?.value;
+      // melsec-connect는 에러가 발생해도 success: true를 반환하므로
+      // 결과 객체의 error 필드를 확인해야 함
+      const resultData = readResult.results?.[this.address];
+      const hasError = resultData?.error;
+      const value = resultData?.value;
+
+      if (readResult.success && !hasError && value !== undefined) {
         logger.log(
           "DEBUG",
           "PLC",
@@ -329,14 +334,20 @@ class PLC {
 
         const connectionResult = {
           success: true,
-          message: `PLC 접속 성공 (${this.ip}:${this.port}, Net:${this.network}, Stn:${this.station}, 주소: ${this.address})`,
+          message: `PLC 접속 성공 (${this.ip}:${this.port}, Net:${this.network}, Stn:${this.station}, 주소: ${this.address}, 값: ${value})`,
           version: `MC Protocol ${this.frame}`,
         };
 
         logger.log("INFO", "PLC", `🔌 ${connectionResult.message}`);
         return connectionResult;
       } else {
-        const errorMsg = `데이터 읽기 실패`;
+        // 에러 메시지 상세화
+        let errorMsg = `데이터 읽기 실패`;
+        if (hasError) {
+          errorMsg = `데이터 읽기 에러: ${resultData.error}`;
+        } else if (value === undefined) {
+          errorMsg = `데이터 읽기 실패: 응답값 없음 (주소: ${this.address})`;
+        }
         logger.log("WARN", "PLC", `🔌 ${errorMsg}`);
         return { success: false, message: errorMsg };
       }
@@ -446,9 +457,11 @@ class PLC {
 
     try {
       const result = await this.client.read([{ name: this.address }]);
+      const resultData = result.results?.[this.address];
 
-      if (result.success && result.results[this.address]) {
-        const statusValue = result.results[this.address].value;
+      // 에러 필드가 있거나 값이 없으면 실패로 처리
+      if (result.success && resultData && !resultData.error && resultData.value !== undefined) {
+        const statusValue = resultData.value;
 
         switch (statusValue) {
           case PLC_VALUES.STOPPED:
@@ -458,6 +471,12 @@ class PLC {
           default:
             return "RUNNING";
         }
+      }
+
+      // 에러 발생 시 로그 기록
+      if (resultData?.error) {
+        logger.log("WARN", "PLC", `상태 읽기 에러: ${resultData.error}`);
+        this.isConnected = false;
       }
 
       return "RUNNING";
