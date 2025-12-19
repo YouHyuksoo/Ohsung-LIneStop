@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 실제 PLC 제어
+    // 실제 PLC 제어 - 새 PLCClient 인스턴스 사용 (최신 설정 적용)
     const actionLabels: Record<number, string> = {
       0: "해제 (라인 가동)",
       1: "경고 (알람)",
@@ -106,82 +106,87 @@ export async function POST(request: NextRequest) {
       `PLC 제어: ${address}에 ${value}(${actionLabels[value]}) 쓰기 시작`
     );
 
-    // 연결 확인
-    if (!plc.connected) {
-      await plc.connect();
-    }
-
     try {
-      // mcprotocol의 writeItems 사용
-      // 주소 형식: "D7000" (문자열)
-      // 값: 0, 1, 2 (정수)
-      // 콜백: (qualityBad, values) - qualityBad는 데이터 품질 지표 (boolean)
-      const writePromise = new Promise<void>((resolve, reject) => {
-        const client = (plc as any).client;
-        if (!client) {
-          reject(new Error("PLC 클라이언트가 초기화되지 않았습니다"));
-          return;
+      // 설정 파일에서 PLC 설정 로드
+      const fs = await import("fs");
+      const path = await import("path");
+      const settingsFile = path.join(process.cwd(), "settings.json");
+      let plcConfig = {
+        ip: "192.168.151.27",
+        port: 5012,
+        ascii: false,
+        frame: "3E",
+        plcType: "Q",
+        network: 0,
+        station: 0,
+      };
+
+      if (fs.existsSync(settingsFile)) {
+        const data = fs.readFileSync(settingsFile, "utf-8");
+        const settings = JSON.parse(data);
+        if (settings.plc) {
+          plcConfig = {
+            ip: settings.plc.ip || plcConfig.ip,
+            port: settings.plc.port || plcConfig.port,
+            ascii: settings.plc.ascii ?? plcConfig.ascii,
+            frame: settings.plc.frame || plcConfig.frame,
+            plcType: settings.plc.plcType || plcConfig.plcType,
+            network: settings.plc.network ?? plcConfig.network,
+            station: settings.plc.station ?? plcConfig.station,
+          };
         }
+      }
 
-        let callbackExecuted = false;
+      // 상세 로그 출력
+      const configSummary = {
+        ...plcConfig,
+        address,
+        value,
+      };
+      logger.log("DEBUG", "API", `PLC 제어 설정: ${JSON.stringify(configSummary)}`);
+      console.log("[PLC Control] 설정:", configSummary);
 
-        // 타임아웃 설정 (10초)
-        const timeout = setTimeout(() => {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            logger.log(
-              "WARN",
-              "API",
-              `PLC 제어 타임아웃: ${address}에 ${value} 쓰기 (10초 응답 없음)`
-            );
-            reject(new Error(`PLC write timeout (${address}에 10초 응답 없음)`));
-          }
-        }, 10000);
-
-        try {
-          // mcprotocol writeItems 콜백: (qualityBad, values)
-          // qualityBad가 true면 데이터에 문제가 있다는 의미 (에러 아님)
-          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
-          const writeValue = Array.isArray(value) ? value : [value];
-
-          logger.log(
-            "DEBUG",
-            "API",
-            `PLC writeItems 호출: address=${address}, value=${JSON.stringify(writeValue)}`
-          );
-
-          client.writeItems(address, writeValue, (qualityBad: boolean, values: any) => {
-            if (!callbackExecuted) {
-              callbackExecuted = true;
-              clearTimeout(timeout);
-
-              if (qualityBad) {
-                logger.log(
-                  "WARN",
-                  "API",
-                  `PLC 제어: 데이터 품질 경고 (${address}에 ${value} 쓰기) - qualityBad: true`
-                );
-              } else {
-                logger.log(
-                  "DEBUG",
-                  "API",
-                  `PLC 제어: 쓰기 성공 (${address}에 ${value})`
-                );
-              }
-              // 어쨌든 resolve (qualityBad가 true여도 쓰기 자체는 성공함)
-              resolve();
-            }
-          });
-        } catch (err) {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            clearTimeout(timeout);
-            reject(err);
-          }
-        }
+      // melsec-connect PLCClient 사용
+      const { PLCClient } = require("melsec-connect");
+      const controlClient = new PLCClient({
+        host: plcConfig.ip,
+        port: plcConfig.port,
+        ascii: plcConfig.ascii,
+        frame: plcConfig.frame,
+        plcType: plcConfig.plcType,
+        network: plcConfig.network,
+        PLCStation: plcConfig.station,
+        timeout: 10000,
+        logLevel: "DEBUG",
       });
 
-      await writePromise;
+      // 연결
+      await controlClient.connect();
+
+      // 값 쓰기
+      const writeResult = await controlClient.write([
+        { name: address, value: value },
+      ]);
+
+      // 연결 종료
+      await controlClient.disconnect();
+
+      // 결과 확인
+      const resultData = writeResult.results?.[address];
+      if (writeResult.success && !resultData?.error) {
+        logger.log(
+          "DEBUG",
+          "API",
+          `PLC 제어: 쓰기 성공 (${address}에 ${value})`
+        );
+      } else {
+        const errorMsg = resultData?.error || "알 수 없는 오류";
+        logger.log(
+          "WARN",
+          "API",
+          `PLC 제어: 쓰기 에러 (${address}에 ${value}) - ${errorMsg}`
+        );
+      }
 
       logger.log(
         "INFO",
