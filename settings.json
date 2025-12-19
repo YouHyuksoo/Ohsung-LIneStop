@@ -18,9 +18,10 @@
     "ip": "192.168.151.27",
     "port": 5012,
     "address": "D7000",
-    "ascii": true,
+    "ascii": false,
     "network": 1,
-    "station": 0
+    "station": 0,
+    "frame": "3E"
   },
   "db": {
     "host": "192.168.110.222",

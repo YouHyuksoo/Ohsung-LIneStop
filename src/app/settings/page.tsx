@@ -65,6 +65,7 @@ interface Settings {
     ascii?: boolean; // ASCII 모드 (true) / Binary 모드 (false)
     network?: number; // 네트워크 번호 (기본값: 1)
     station?: number; // 스테이션 번호 (기본값: 0)
+    frame?: string; // 프레임 타입 (3E / 4E)
   };
   db?: {
     host: string;
@@ -512,7 +513,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-3">
-                    PLC 통신 모드
+                    통신 모드
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -520,6 +521,7 @@ export default function SettingsPage() {
                         setSettings({
                           ...settings,
                           plc: {
+                            ...settings.plc,
                             ip: settings.plc?.ip || "",
                             port: settings.plc?.port || 0,
                             address: settings.plc?.address || "",
@@ -528,18 +530,19 @@ export default function SettingsPage() {
                         })
                       }
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
-                        settings.plc?.ascii !== false
+                        settings.plc?.ascii === true
                           ? "bg-blue-500/20 border-blue-500/50 text-blue-600"
                           : "bg-card border-border text-foreground/60 hover:bg-card/80"
                       }`}
                     >
-                      ASCII 모드
+                      ASCII
                     </button>
                     <button
                       onClick={() =>
                         setSettings({
                           ...settings,
                           plc: {
+                            ...settings.plc,
                             ip: settings.plc?.ip || "",
                             port: settings.plc?.port || 0,
                             address: settings.plc?.address || "",
@@ -553,15 +556,68 @@ export default function SettingsPage() {
                           : "bg-card border-border text-foreground/60 hover:bg-card/80"
                       }`}
                     >
-                      Binary 모드
+                      Binary
                     </button>
                   </div>
-                  <p className="text-xs text-foreground/50 mt-2">
-                    {settings.plc?.ascii !== false
-                      ? "ASCII 모드 사용 중 (더 안정적인 텍스트 기반 통신)"
-                      : "Binary 모드 사용 중 (더 빠른 바이너리 통신)"}
-                  </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">
+                    프레임 타입
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          plc: {
+                            ...settings.plc,
+                            ip: settings.plc?.ip || "",
+                            port: settings.plc?.port || 0,
+                            address: settings.plc?.address || "",
+                            frame: "3E",
+                          },
+                        })
+                      }
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                        settings.plc?.frame === "3E" || !settings.plc?.frame
+                          ? "bg-green-500/20 border-green-500/50 text-green-600"
+                          : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                      }`}
+                    >
+                      3E Frame
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          plc: {
+                            ...settings.plc,
+                            ip: settings.plc?.ip || "",
+                            port: settings.plc?.port || 0,
+                            address: settings.plc?.address || "",
+                            frame: "4E",
+                          },
+                        })
+                      }
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                        settings.plc?.frame === "4E"
+                          ? "bg-orange-500/20 border-orange-500/50 text-orange-600"
+                          : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                      }`}
+                    >
+                      4E Frame
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {/* 현재 설정 상태 표시 */}
+              <div className="p-3 bg-secondary/30 rounded-lg">
+                <p className="text-xs text-foreground/70">
+                  현재 설정: <span className="font-medium">{settings.plc?.ascii ? "ASCII" : "Binary"}</span> 모드,
+                  <span className="font-medium ml-1">{settings.plc?.frame || "3E"}</span> 프레임,
+                  Net:<span className="font-medium">{settings.plc?.network ?? 1}</span>,
+                  Stn:<span className="font-medium">{settings.plc?.station ?? 0}</span>
+                </p>
               </div>
               {/* PLC 연결 테스트 버튼 */}
               <div className="pt-4 border-t border-border space-y-3">
