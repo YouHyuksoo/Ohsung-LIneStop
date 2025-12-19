@@ -63,6 +63,8 @@ interface Settings {
     port: number;
     address: string;
     ascii?: boolean; // ASCII 모드 (true) / Binary 모드 (false)
+    network?: number; // 네트워크 번호 (기본값: 1)
+    station?: number; // 스테이션 번호 (기본값: 0)
   };
   db?: {
     host: string;
@@ -391,7 +393,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     IP 주소
@@ -403,6 +405,7 @@ export default function SettingsPage() {
                       setSettings({
                         ...settings,
                         plc: {
+                          ...settings.plc,
                           port: settings.plc?.port || 0,
                           address: settings.plc?.address || "",
                           ip: e.target.value,
@@ -424,6 +427,7 @@ export default function SettingsPage() {
                       setSettings({
                         ...settings,
                         plc: {
+                          ...settings.plc,
                           ip: settings.plc?.ip || "",
                           address: settings.plc?.address || "",
                           port: parseInt(e.target.value),
@@ -436,7 +440,57 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    제어 주소 (mcprotocol 형식)
+                    네트워크 번호
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="255"
+                    value={settings.plc?.network ?? 1}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        plc: {
+                          ...settings.plc,
+                          ip: settings.plc?.ip || "",
+                          port: settings.plc?.port || 0,
+                          address: settings.plc?.address || "",
+                          network: parseInt(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    스테이션 번호
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="255"
+                    value={settings.plc?.station ?? 0}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        plc: {
+                          ...settings.plc,
+                          ip: settings.plc?.ip || "",
+                          port: settings.plc?.port || 0,
+                          address: settings.plc?.address || "",
+                          station: parseInt(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    제어 주소
                   </label>
                   <input
                     type="text"
@@ -445,15 +499,15 @@ export default function SettingsPage() {
                       setSettings({
                         ...settings,
                         plc: {
+                          ...settings.plc,
                           ip: settings.plc?.ip || "",
                           port: settings.plc?.port || 0,
                           address: e.target.value,
-                          ascii: settings.plc?.ascii ?? true,
                         },
                       })
                     }
                     className="w-full bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-[hsl(var(--primary))]"
-                    placeholder="D7000,1"
+                    placeholder="D7000"
                   />
                 </div>
                 <div>
