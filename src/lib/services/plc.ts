@@ -291,11 +291,21 @@ class PLC {
 
     // 설정 다시 로드하여 최신 값 사용
     this.loadSettings();
-    logger.log(
-      "DEBUG",
-      "PLC",
-      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, Net: ${this.network}, Stn: ${this.station}, Frame: ${this.frame}, 주소: ${this.address}`
-    );
+
+    // 상세 디버그 로그
+    const configSummary = {
+      host: this.ip,
+      port: this.port,
+      ascii: this.asciiMode,
+      frame: this.frame,
+      plcType: this.plcType,
+      network: this.network,
+      PLCStation: this.station,
+      address: this.address,
+    };
+    logger.log("INFO", "PLC", `접속 테스트 시작`);
+    logger.log("DEBUG", "PLC", `설정: ${JSON.stringify(configSummary)}`);
+    console.log("[PLC] 접속 테스트 설정:", configSummary);
 
     try {
       // melsec-connect PLCClient 설정
@@ -308,6 +318,7 @@ class PLC {
         network: this.network,
         PLCStation: this.station,
         timeout: 10000,
+        logLevel: "DEBUG", // 라이브러리 디버그 로그 활성화
       });
 
       // 연결 시도
