@@ -146,47 +146,66 @@ export async function POST(request: NextRequest) {
       logger.log("DEBUG", "API", `PLC 제어 설정: ${JSON.stringify(configSummary)}`);
       console.log("[PLC Control] 설정:", configSummary);
 
-      // melsec-connect PLCClient 사용
-      const { PLCClient } = require("melsec-connect");
-      const controlClient = new PLCClient({
-        host: plcConfig.ip,
-        port: plcConfig.port,
-        ascii: plcConfig.ascii,
-        frame: plcConfig.frame,
-        plcType: plcConfig.plcType,
-        network: plcConfig.network,
-        PLCStation: plcConfig.station,
-        timeout: 10000,
-        logLevel: "DEBUG",
+      // mcprotocol 직접 사용 (melsec-connect 내부 라이브러리)
+      const mcprotocol = require("melsec-connect/src/mcprotocol/mcprotocol.js");
+
+      const writeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+        const conn = new mcprotocol();
+
+        // 연결 설정
+        const connConfig = {
+          host: plcConfig.ip,
+          port: plcConfig.port,
+          ascii: plcConfig.ascii,
+          frame: plcConfig.frame,
+          plcType: plcConfig.plcType,
+          network: plcConfig.network,
+          PLCStation: plcConfig.station,
+          autoConnect: true,
+        };
+
+        // 타임아웃 설정
+        const timeout = setTimeout(() => {
+          try { conn.dropConnection(); } catch (e) {}
+          resolve({ success: false, error: "연결 타임아웃 (10초)" });
+        }, 10000);
+
+        // 연결 성공 시
+        conn.on("open", () => {
+          logger.log("DEBUG", "API", `PLC 연결 성공, 쓰기 시작: ${address} = ${value}`);
+
+          // writeItems 호출 (주소, 값 배열, 콜백)
+          conn.writeItems(address, [value], (qualityBad: boolean) => {
+            clearTimeout(timeout);
+
+            if (qualityBad) {
+              logger.log("WARN", "API", `PLC 쓰기 품질 경고: ${address}`);
+            }
+
+            // 연결 종료
+            try { conn.dropConnection(); } catch (e) {}
+
+            resolve({ success: true });
+          });
+        });
+
+        // 에러 발생 시
+        conn.on("error", (err: any) => {
+          clearTimeout(timeout);
+          try { conn.dropConnection(); } catch (e) {}
+          resolve({ success: false, error: err?.message || String(err) });
+        });
+
+        // 연결 시작
+        conn.initiateConnection(connConfig);
       });
 
-      // 연결
-      await controlClient.connect();
-
-      // 값 쓰기
-      const writeResult = await controlClient.write([
-        { name: address, value: value },
-      ]);
-
-      // 연결 종료
-      await controlClient.disconnect();
-
-      // 결과 확인
-      const resultData = writeResult.results?.[address];
-      if (writeResult.success && !resultData?.error) {
-        logger.log(
-          "DEBUG",
-          "API",
-          `PLC 제어: 쓰기 성공 (${address}에 ${value})`
-        );
-      } else {
-        const errorMsg = resultData?.error || "알 수 없는 오류";
-        logger.log(
-          "WARN",
-          "API",
-          `PLC 제어: 쓰기 에러 (${address}에 ${value}) - ${errorMsg}`
-        );
+      if (!writeResult.success) {
+        throw new Error(writeResult.error || "PLC 쓰기 실패");
       }
+
+      logger.log("DEBUG", "API", `PLC 제어: 쓰기 성공 (${address}에 ${value})`);
+      console.log(`[PLC Control] 쓰기 성공: ${address} = ${value}`);
 
       logger.log(
         "INFO",
