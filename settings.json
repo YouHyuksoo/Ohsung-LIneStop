@@ -18,7 +18,7 @@
     "ip": "192.168.151.27",
     "port": 5012,
     "address": "D7000",
-    "ascii": false,
+    "ascii": true,
     "network": 1,
     "station": 0
   },

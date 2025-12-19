@@ -341,14 +341,37 @@ class PLC {
         logger.log("INFO", "PLC", `🔌 ${connectionResult.message}`);
         return connectionResult;
       } else {
-        // 에러 메시지 상세화
+        // 에러 메시지 상세화 - endCode, endDetail 등 추가 정보 포함
         let errorMsg = `데이터 읽기 실패`;
+        const endCode = resultData?.endCode;
+        const endDetail = resultData?.endDetail;
+        const lastError = resultData?.lastError;
+
         if (hasError) {
           errorMsg = `데이터 읽기 에러: ${resultData.error}`;
+        } else if (endCode) {
+          // MC Protocol 에러 코드 해석
+          const errorHex = `0x${endCode.toString(16).toUpperCase()}`;
+          errorMsg = `MC Protocol 에러 (코드: ${endCode} / ${errorHex})`;
+
+          // 주요 에러 코드 설명
+          if (endCode === 0x4003 || endCode === 16387) {
+            errorMsg += ` - 요청 형식 오류 (ASCII/Binary 모드 불일치 또는 프레임 타입 오류)`;
+          } else if (endCode >= 0xC000) {
+            errorMsg += ` - PLC CPU 에러`;
+          }
+        } else if (lastError) {
+          errorMsg = `통신 에러: ${lastError}`;
         } else if (value === undefined) {
           errorMsg = `데이터 읽기 실패: 응답값 없음 (주소: ${this.address})`;
         }
+
+        // 상세 로그 기록
         logger.log("WARN", "PLC", `🔌 ${errorMsg}`);
+        if (endDetail) {
+          logger.log("DEBUG", "PLC", `에러 상세: ${JSON.stringify(endDetail)}`);
+        }
+
         return { success: false, message: errorMsg };
       }
     } catch (error: any) {
