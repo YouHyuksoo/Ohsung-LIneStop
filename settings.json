@@ -21,7 +21,8 @@
     "ascii": false,
     "network": 1,
     "station": 0,
-    "frame": "3E"
+    "frame": "3E",
+    "plcType": "Q"
   },
   "db": {
     "host": "192.168.110.222",

@@ -65,7 +65,8 @@ interface Settings {
     ascii?: boolean; // ASCII 모드 (true) / Binary 모드 (false)
     network?: number; // 네트워크 번호 (기본값: 1)
     station?: number; // 스테이션 번호 (기본값: 0)
-    frame?: string; // 프레임 타입 (3E / 4E)
+    frame?: string; // 프레임 타입 (1E / 3E / 4E)
+    plcType?: string; // PLC 타입 (Q / R / L / A)
   };
   db?: {
     host: string;
@@ -574,17 +575,38 @@ export default function SettingsPage() {
                             ip: settings.plc?.ip || "",
                             port: settings.plc?.port || 0,
                             address: settings.plc?.address || "",
+                            frame: "1E",
+                          },
+                        })
+                      }
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border text-sm ${
+                        settings.plc?.frame === "1E"
+                          ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-600"
+                          : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                      }`}
+                    >
+                      1E
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          plc: {
+                            ...settings.plc,
+                            ip: settings.plc?.ip || "",
+                            port: settings.plc?.port || 0,
+                            address: settings.plc?.address || "",
                             frame: "3E",
                           },
                         })
                       }
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border text-sm ${
                         settings.plc?.frame === "3E" || !settings.plc?.frame
                           ? "bg-green-500/20 border-green-500/50 text-green-600"
                           : "bg-card border-border text-foreground/60 hover:bg-card/80"
                       }`}
                     >
-                      3E Frame
+                      3E
                     </button>
                     <button
                       onClick={() =>
@@ -599,14 +621,45 @@ export default function SettingsPage() {
                           },
                         })
                       }
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border text-sm ${
                         settings.plc?.frame === "4E"
                           ? "bg-orange-500/20 border-orange-500/50 text-orange-600"
                           : "bg-card border-border text-foreground/60 hover:bg-card/80"
                       }`}
                     >
-                      4E Frame
+                      4E
                     </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">
+                    PLC 타입
+                  </label>
+                  <div className="flex gap-2">
+                    {["Q", "R", "L", "A"].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            plc: {
+                              ...settings.plc,
+                              ip: settings.plc?.ip || "",
+                              port: settings.plc?.port || 0,
+                              address: settings.plc?.address || "",
+                              plcType: type,
+                            },
+                          })
+                        }
+                        className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border text-sm ${
+                          settings.plc?.plcType === type || (!settings.plc?.plcType && type === "Q")
+                            ? "bg-pink-500/20 border-pink-500/50 text-pink-600"
+                            : "bg-card border-border text-foreground/60 hover:bg-card/80"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -615,6 +668,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-foreground/70">
                   현재 설정: <span className="font-medium">{settings.plc?.ascii ? "ASCII" : "Binary"}</span> 모드,
                   <span className="font-medium ml-1">{settings.plc?.frame || "3E"}</span> 프레임,
+                  <span className="font-medium ml-1">{settings.plc?.plcType || "Q"}</span> 시리즈,
                   Net:<span className="font-medium">{settings.plc?.network ?? 1}</span>,
                   Stn:<span className="font-medium">{settings.plc?.station ?? 0}</span>
                 </p>
