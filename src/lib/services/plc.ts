@@ -279,8 +279,26 @@ class PLC {
       return { success: false, message };
     }
 
+    // 설정 다시 로드하여 최신 값 사용
+    this.loadSettings();
+    logger.log(
+      "DEBUG",
+      "PLC",
+      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, 주소: ${this.address}`
+    );
+
     try {
       const testClient = new MCProtocol();
+
+      // MC Protocol 오류 이벤트를 추적하기 위한 변수
+      let mcProtocolError: string | null = null;
+
+      // 오류 이벤트 리스너 등록 (mcprotocol은 내부 오류를 이벤트로 발생시킴)
+      testClient.on("error", (err: any) => {
+        const errorMsg = err?.message || err?.toString() || "알 수 없는 오류";
+        mcProtocolError = errorMsg;
+        logger.log("ERROR", "PLC", `MC Protocol 오류 이벤트: ${errorMsg}`);
+      });
 
       // 1단계: 연결만 수행 (메서드 검증 없음)
       const connectResult = await new Promise<{
@@ -326,19 +344,55 @@ class PLC {
         };
       }
 
-      // 2단계: 연결 후 약간의 딜레이 추가 (안정화 대기)
+      // 2단계: 연결 후 약간의 딜레이 추가 (안정화 대기 및 오류 이벤트 수신 대기)
       await new Promise((res) => setTimeout(res, 500));
+
+      // 오류 이벤트가 발생했는지 확인
+      if (mcProtocolError) {
+        logger.log("WARN", "PLC", `🔌 MC Protocol 오류 감지됨: ${mcProtocolError}`);
+        return {
+          success: false,
+          message: `MC Protocol 오류: ${mcProtocolError}`,
+        };
+      }
 
       // 3단계: 데이터 읽기로 검증
       const readResult = await new Promise<{
         success: boolean;
         message: string;
       }>((resolve) => {
+        // 읽기 타임아웃 설정
+        const readTimeout = setTimeout(() => {
+          // 타임아웃 시점에 오류가 발생했는지 확인
+          if (mcProtocolError) {
+            resolve({
+              success: false,
+              message: `MC Protocol 오류: ${mcProtocolError}`,
+            });
+          } else {
+            resolve({
+              success: false,
+              message: `데이터 읽기 타임아웃 (5초 이내 응답 없음)`,
+            });
+          }
+        }, 5000);
+
         try {
           // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
           testClient.addItems(this.address);
 
           testClient.readAllItems((qualityBad: any, values: any) => {
+            clearTimeout(readTimeout);
+
+            // 읽기 완료 후 오류 이벤트가 발생했는지 다시 확인
+            if (mcProtocolError) {
+              resolve({
+                success: false,
+                message: `MC Protocol 오류: ${mcProtocolError}`,
+              });
+              return;
+            }
+
             // qualityBad는 boolean (ANY 데이터의 품질이 나쁜지 여부)
             // values는 읽은 데이터 객체
             if (!values || Object.keys(values).length === 0) {
@@ -347,12 +401,15 @@ class PLC {
                 message: `PLC에서 데이터를 읽을 수 없습니다 (비어있음)`,
               });
             } else if (qualityBad === true) {
-              // 데이터 품질이 나쁘지만, 데이터는 있음 - 경고만 표시
+              // 데이터 품질이 나쁨 - 실패로 처리 (오류가 발생한 것임)
               resolve({
-                success: true,
-                message: `PLC 접속 성공 (데이터 품질 경고)`,
+                success: false,
+                message: `PLC 데이터 품질 불량 (qualityBad=true) - ASCII/Binary 모드를 확인하세요`,
               });
             } else {
+              // 실제 값 로깅
+              const readValue = values[this.address];
+              logger.log("DEBUG", "PLC", `PLC 데이터 읽기 성공: ${this.address} = ${JSON.stringify(readValue)}`);
               resolve({
                 success: true,
                 message: `PLC 접속 성공`,
@@ -360,6 +417,7 @@ class PLC {
             }
           });
         } catch (ex) {
+          clearTimeout(readTimeout);
           resolve({
             success: false,
             message: `데이터 읽기 중 예외: ${ex}`,
@@ -391,6 +449,9 @@ class PLC {
    * PLC에 연결합니다.
    */
   async connect(): Promise<void> {
+    // 설정 다시 로드하여 최신 값 사용
+    this.loadSettings();
+
     if (this.mockMode) {
       this.isConnected = true;
       return;
@@ -407,11 +468,32 @@ class PLC {
 
     if (this.isConnected) return;
 
+    logger.log(
+      "DEBUG",
+      "PLC",
+      `PLC 연결 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}`
+    );
+
     try {
       this.client = new MCProtocol();
 
+      // MC Protocol 오류 이벤트를 추적하기 위한 변수
+      let mcProtocolError: string | null = null;
+
+      // 오류 이벤트 리스너 등록
+      this.client.on("error", (err: any) => {
+        const errorMsg = err?.message || err?.toString() || "알 수 없는 오류";
+        mcProtocolError = errorMsg;
+        logger.log("ERROR", "PLC", `MC Protocol 오류 이벤트 (connect): ${errorMsg}`);
+        this.isConnected = false;
+      });
+
       // Callback 방식을 Promise로 변환
       await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("연결 타임아웃 (10초)"));
+        }, 10000);
+
         this.client.initiateConnection(
           {
             host: this.ip,
@@ -420,6 +502,7 @@ class PLC {
             octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
           },
           (err: any) => {
+            clearTimeout(timeout);
             if (err) {
               reject(err);
             } else {
@@ -429,11 +512,21 @@ class PLC {
         );
       });
 
+      // 연결 후 약간의 딜레이 (오류 이벤트 수신 대기)
+      await new Promise((res) => setTimeout(res, 300));
+
+      // 오류 이벤트가 발생했는지 확인
+      if (mcProtocolError) {
+        this.isConnected = false;
+        logger.log("ERROR", "PLC", `PLC 연결 실패 (MC Protocol 오류): ${mcProtocolError}`);
+        return;
+      }
+
       this.isConnected = true;
       logger.log(
         "INFO",
         "PLC",
-        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address})`
+        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address}, ${this.asciiMode ? "ASCII" : "Binary"} 모드)`
       );
     } catch (error) {
       this.isConnected = false;
