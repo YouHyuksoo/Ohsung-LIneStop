@@ -523,12 +523,13 @@ class PLC {
 
   /**
    * 라인 정지 명령을 전송합니다.
+   * mcprotocol 직접 사용 (writeItems)
    */
   async stopLine(reason: string): Promise<void> {
     logger.log(
       "ERROR",
       "PLC",
-      `🚨 라인 정지 명령 전송! (${this.address} = 1) 사유: ${reason}`
+      `🚨 라인 정지 명령 전송! (${this.address} = ${PLC_VALUES.STOPPED}) 사유: ${reason}`
     );
     this._stopReason = reason;
 
@@ -537,25 +538,19 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected || !this.client) await this.connect();
-
-    try {
-      await this.client.write([
-        { name: this.address, value: PLC_VALUES.STOPPED },
-      ]);
-    } catch (error) {
-      logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
-    }
+    // mcprotocol 직접 사용
+    await this.writeValueDirect(PLC_VALUES.STOPPED, "정지");
   }
 
   /**
    * 라인 경고(알람) 명령을 전송합니다.
+   * mcprotocol 직접 사용 (writeItems)
    */
   async warnLine(reason: string): Promise<void> {
     logger.log(
       "WARN",
       "PLC",
-      `⚠️ 라인 경고(알람) 명령 전송! (${this.address} = 2) 사유: ${reason}`
+      `⚠️ 라인 경고(알람) 명령 전송! (${this.address} = ${PLC_VALUES.WARNING}) 사유: ${reason}`
     );
     this._stopReason = reason;
 
@@ -564,22 +559,16 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected || !this.client) await this.connect();
-
-    try {
-      await this.client.write([
-        { name: this.address, value: PLC_VALUES.WARNING },
-      ]);
-    } catch (error) {
-      logger.log("ERROR", "PLC", `경고 명령 전송 실패: ${error}`);
-    }
+    // mcprotocol 직접 사용
+    await this.writeValueDirect(PLC_VALUES.WARNING, "경고");
   }
 
   /**
    * 라인 재가동 명령을 전송합니다.
+   * mcprotocol 직접 사용 (writeItems)
    */
   async resetLine(): Promise<void> {
-    logger.log("INFO", "PLC", `✅ 라인 재가동 명령 전송 (${this.address} = 0)`);
+    logger.log("INFO", "PLC", `✅ 라인 재가동 명령 전송 (${this.address} = ${PLC_VALUES.RUNNING})`);
     this._stopReason = "";
 
     if (this.mockMode) {
@@ -587,14 +576,84 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected || !this.client) await this.connect();
+    // mcprotocol 직접 사용
+    await this.writeValueDirect(PLC_VALUES.RUNNING, "해제");
+  }
+
+  /**
+   * mcprotocol을 직접 사용하여 PLC에 값을 씁니다.
+   * plc-control API와 동일한 방식
+   *
+   * @param value - 쓰기할 값 (0: 해제, 1: 정지, 2: 경고)
+   * @param actionName - 동작 이름 (로그용)
+   */
+  private async writeValueDirect(value: number, actionName: string): Promise<void> {
+    // 설정 다시 로드하여 최신 값 사용
+    this.loadSettings();
 
     try {
-      await this.client.write([
-        { name: this.address, value: PLC_VALUES.RUNNING },
-      ]);
+      // mcprotocol 직접 사용 (melsec-connect 내부 라이브러리)
+      const mcprotocol = require("melsec-connect/src/mcprotocol/mcprotocol.js");
+
+      const writeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+        const conn = new mcprotocol();
+
+        // 연결 설정
+        const connConfig = {
+          host: this.ip,
+          port: this.port,
+          ascii: this.asciiMode,
+          frame: this.frame,
+          plcType: this.plcType,
+          network: this.network,
+          PLCStation: this.station,
+          autoConnect: true,
+        };
+
+        // 타임아웃 설정 (10초)
+        const timeout = setTimeout(() => {
+          try { conn.dropConnection(); } catch (e) { /* ignore */ }
+          resolve({ success: false, error: "연결 타임아웃 (10초)" });
+        }, 10000);
+
+        // 연결 성공 시
+        conn.on("open", () => {
+          logger.log("DEBUG", "PLC", `PLC 연결 성공, ${actionName} 쓰기 시작: ${this.address} = ${value}`);
+
+          // writeItems 호출 (주소, 값 배열, 콜백)
+          conn.writeItems(this.address, [value], (qualityBad: boolean) => {
+            clearTimeout(timeout);
+
+            if (qualityBad) {
+              logger.log("WARN", "PLC", `PLC 쓰기 품질 경고: ${this.address}`);
+            }
+
+            // 연결 종료
+            try { conn.dropConnection(); } catch (e) { /* ignore */ }
+
+            resolve({ success: true });
+          });
+        });
+
+        // 에러 발생 시
+        conn.on("error", (err: any) => {
+          clearTimeout(timeout);
+          try { conn.dropConnection(); } catch (e) { /* ignore */ }
+          resolve({ success: false, error: err?.message || String(err) });
+        });
+
+        // 연결 시작
+        conn.initiateConnection(connConfig);
+      });
+
+      if (!writeResult.success) {
+        throw new Error(writeResult.error || "PLC 쓰기 실패");
+      }
+
+      logger.log("DEBUG", "PLC", `PLC ${actionName} 쓰기 성공 (${this.address} = ${value})`);
     } catch (error) {
-      logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.log("ERROR", "PLC", `PLC ${actionName} 명령 전송 실패: ${errorMessage}`);
     }
   }
 }

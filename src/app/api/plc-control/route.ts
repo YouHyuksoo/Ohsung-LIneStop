@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
     if (plc.isMockMode) {
       const actionLabels: Record<number, string> = {
         0: "해제 (라인 가동)",
-        1: "경고 (알람)",
-        2: "정지",
+        1: "정지",
+        2: "경고 (알람)",
       };
 
       logger.log(
@@ -74,11 +74,11 @@ export async function POST(request: NextRequest) {
         // 해제 - resetLine 호출
         await plc.resetLine();
       } else if (value === 1) {
-        // 경고 - warnLine 호출
-        await plc.warnLine("Settings 페이지 테스트");
-      } else if (value === 2) {
         // 정지 - stopLine 호출
         await plc.stopLine("Settings 페이지 테스트");
+      } else if (value === 2) {
+        // 경고 - warnLine 호출
+        await plc.warnLine("Settings 페이지 테스트");
       }
 
       return NextResponse.json(
@@ -93,11 +93,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 실제 PLC 제어 - 새 PLCClient 인스턴스 사용 (최신 설정 적용)
+    // 실제 PLC 제어 - mcprotocol 직접 사용 (최신 설정 적용)
     const actionLabels: Record<number, string> = {
       0: "해제 (라인 가동)",
-      1: "경고 (알람)",
-      2: "정지",
+      1: "정지",
+      2: "경고 (알람)",
     };
 
     logger.log(

@@ -277,7 +277,7 @@ export default function SettingsPage() {
   };
 
   /**
-   * PLC 제어 테스트 함수 (0: 해제, 1: 경고, 2: 정지)
+   * PLC 제어 테스트 함수 (0: 해제, 1: 정지, 2: 경고)
    */
   const testPLCControl = async (value: 0 | 1 | 2) => {
     setTestingPLCControl(value);
@@ -285,8 +285,8 @@ export default function SettingsPage() {
 
     const actionLabels: Record<number, string> = {
       0: "해제 (라인 가동)",
-      1: "경고 (알람)",
-      2: "정지",
+      1: "정지",
+      2: "경고 (알람)",
     };
 
     try {
@@ -835,32 +835,32 @@ export default function SettingsPage() {
                       {testingPLCControl === 0 ? "중..." : "해제"}
                     </button>
 
-                    {/* 경고 (1) 버튼 */}
+                    {/* 정지 (1) 버튼 */}
                     <button
                       onClick={() => testPLCControl(1)}
                       disabled={testingPLCControl !== null}
-                      className="flex items-center justify-center gap-1 px-3 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 hover:bg-yellow-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center justify-center gap-1 px-3 py-2 bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {testingPLCControl === 1 ? (
-                        <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                       ) : (
                         "1️⃣"
                       )}
-                      {testingPLCControl === 1 ? "중..." : "경고"}
+                      {testingPLCControl === 1 ? "중..." : "정지"}
                     </button>
 
-                    {/* 정지 (2) 버튼 */}
+                    {/* 경고 (2) 버튼 */}
                     <button
                       onClick={() => testPLCControl(2)}
                       disabled={testingPLCControl !== null}
-                      className="flex items-center justify-center gap-1 px-3 py-2 bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center justify-center gap-1 px-3 py-2 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 hover:bg-yellow-500/20 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {testingPLCControl === 2 ? (
-                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />
                       ) : (
                         "2️⃣"
                       )}
-                      {testingPLCControl === 2 ? "중..." : "정지"}
+                      {testingPLCControl === 2 ? "중..." : "경고"}
                     </button>
                   </div>
 
