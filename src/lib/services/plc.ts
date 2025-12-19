@@ -2,7 +2,7 @@
  * @file src/lib/services/plc.ts
  * @description
  * PLC(Programmable Logic Controller) 통신 인터페이스
- * Mitsubishi MC Protocol (3E/4E Frame) 지원
+ * melsec-connect 라이브러리를 사용한 Mitsubishi MC Protocol 통신
  *
  * 주요 기능:
  * - 라인 상태 읽기 (RUNNING/STOPPED/WARNING)
@@ -49,13 +49,13 @@ import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 
-// MC Protocol 라이브러리 (CommonJS)
-let MCProtocol: any;
+// melsec-connect 라이브러리 (CommonJS)
+let PLCClient: any;
 try {
-  MCProtocol = require("mcprotocol");
+  PLCClient = require("melsec-connect").PLCClient;
 } catch (e) {
   console.warn(
-    "[PLC] mcprotocol library not found. Running in Mock mode only."
+    "[PLC] melsec-connect library not found. Running in Mock mode only."
   );
 }
 
@@ -72,7 +72,7 @@ export const PLC_VALUES = {
 } as const;
 
 /**
- * PLC 통신 클래스
+ * PLC 통신 클래스 (melsec-connect 기반)
  */
 class PLC {
   private mockMode: boolean = true;
@@ -81,9 +81,11 @@ class PLC {
   private ip: string = "192.168.151.27";
   private port: number = 5012;
   private address: string = "D7000"; // 제어 및 상태용 단일 주소
-  private asciiMode: boolean = true; // ASCII 모드 (true) / Binary 모드 (false)
+  private asciiMode: boolean = false; // ASCII 모드 (true) / Binary 모드 (false)
   private network: number = 1; // 네트워크 번호 (기본값: 1)
   private station: number = 0; // 스테이션 번호 (기본값: 0)
+  private frame: string = "3E"; // MC Protocol 프레임 (3E/4E)
+  private plcType: string = "Q"; // PLC 타입 (Q/iQ-R/L 등)
   private settingsFile: string;
   private client: any = null;
   private isConnected: boolean = false;
@@ -125,6 +127,14 @@ class PLC {
           if (typeof settings.plc.station === "number") {
             this.station = settings.plc.station;
           }
+          // 프레임 타입 로드 (기본값: 3E)
+          if (settings.plc.frame) {
+            this.frame = settings.plc.frame;
+          }
+          // PLC 타입 로드 (기본값: Q)
+          if (settings.plc.plcType) {
+            this.plcType = settings.plc.plcType;
+          }
         }
 
         if (settings.mock && typeof settings.mock.plc === "boolean") {
@@ -137,17 +147,14 @@ class PLC {
   }
 
   /**
-   * ⭐ NEW: 설정 파일을 다시 로드하여 메모리의 싱글톤 인스턴스를 업데이트합니다.
-   * 설정 변경 후 즉시 반영하기 위해 사용합니다.
+   * 설정 파일을 다시 로드하여 메모리의 싱글톤 인스턴스를 업데이트합니다.
    */
   reloadSettings(): void {
     this.loadSettings();
   }
 
   /**
-   * ⭐ NEW: Ping 테스트를 수행합니다 (TCP 포트 연결 시도)
-   * 네트워크 연결 가능 여부를 빠르게 확인합니다.
-   * @returns {Promise<{success: boolean, message: string, latency?: number}>}
+   * Ping 테스트를 수행합니다 (TCP 포트 연결 시도)
    */
   async testPing(): Promise<{
     success: boolean;
@@ -175,7 +182,7 @@ class PLC {
           socket.destroy();
           resolve({
             success: false,
-            message: `연결 타임아웃 (5초 이내 응답 없음) - IP를 확인하세요.`,
+            message: `연결 타임아웃 (5초 이내 응답 없음)`,
           });
         }, 5000);
 
@@ -195,9 +202,9 @@ class PLC {
           let failureMessage = `연결 실패: ${err.code || err.message}`;
 
           if (err.code === "ECONNREFUSED") {
-            failureMessage = `Ping은 되지만 포트(${this.port})가 닫혀있습니다. (ECONNREFUSED) - PLC 설정을 확인하세요.`;
+            failureMessage = `포트(${this.port})가 닫혀있습니다. (ECONNREFUSED)`;
           } else if (err.code === "EHOSTUNREACH") {
-            failureMessage = `IP 주소(${this.ip})에 도달할 수 없습니다. (EHOSTUNREACH)`;
+            failureMessage = `IP 주소(${this.ip})에 도달할 수 없습니다.`;
           }
 
           resolve({
@@ -222,9 +229,7 @@ class PLC {
   }
 
   /**
-   * ⭐ NEW: ICMP Ping 테스트를 수행합니다 (시스템 Ping 명령어 사용)
-   * 실제 IP 도달 가능성을 확인합니다 (TCP 포트 테스트 아님).
-   * @returns {Promise<{success: boolean, message: string}>}
+   * ICMP Ping 테스트를 수행합니다
    */
   async testIcmpPing(): Promise<{
     success: boolean;
@@ -237,7 +242,6 @@ class PLC {
     }
 
     return new Promise((resolve) => {
-      // Windows: -n 1, Linux/Mac: -c 1
       const command =
         process.platform === "win32"
           ? `ping -n 1 ${this.ip}`
@@ -251,12 +255,10 @@ class PLC {
             message: `ICMP Ping 실패: 대상 IP(${this.ip})에 도달할 수 없습니다.`,
           });
         } else {
-          // 윈도우 한글 인코딩 문제 등을 고려하여 단순 성공 메시지 반환
-          // stdout 로깅은 함
           logger.log(
             "INFO",
             "PLC",
-            `ICMP Ping 성공 결과: ${stdout.toString()}`
+            `ICMP Ping 성공`
           );
           resolve({
             success: true,
@@ -268,9 +270,7 @@ class PLC {
   }
 
   /**
-   * ⭐ NEW: PLC 접속 테스트를 수행합니다 (MC Protocol 초기화)
-   * Ping 성공 후 실제 PLC 프로토콜 연결을 시도합니다.
-   * @returns {Promise<{success: boolean, message: string, version?: string}>}
+   * PLC 접속 테스트를 수행합니다 (melsec-connect 사용)
    */
   async testConnection(): Promise<{
     success: boolean;
@@ -283,8 +283,8 @@ class PLC {
       return { success: true, message };
     }
 
-    if (!MCProtocol) {
-      const message = `mcprotocol 라이브러리가 설치되지 않음`;
+    if (!PLCClient) {
+      const message = `melsec-connect 라이브러리가 설치되지 않음`;
       logger.log("ERROR", "PLC", `🔌 접속 테스트 실패: ${message}`);
       return { success: false, message };
     }
@@ -294,132 +294,56 @@ class PLC {
     logger.log(
       "DEBUG",
       "PLC",
-      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, Net: ${this.network}, Stn: ${this.station}, 주소: ${this.address}`
+      `접속 테스트 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, Net: ${this.network}, Stn: ${this.station}, Frame: ${this.frame}, 주소: ${this.address}`
     );
 
     try {
-      const testClient = new MCProtocol();
+      // melsec-connect PLCClient 설정
+      const testClient = new PLCClient({
+        host: this.ip,
+        port: this.port,
+        ascii: this.asciiMode,
+        frame: this.frame,
+        plcType: this.plcType,
+        network: this.network,
+        PLCStation: this.station,
+        timeout: 10000,
+      });
 
-      // 1단계: 연결만 수행 (메서드 검증 없음)
-      const connectResult = await new Promise<{
-        success: boolean;
-        message: string;
-      }>((resolve) => {
-        const timeout = setTimeout(() => {
-          resolve({
-            success: false,
-            message: `접속 타임아웃 (10초 이내 응답 없음)`,
-          });
-        }, 10000);
+      // 연결 시도
+      await testClient.connect();
 
-        testClient.initiateConnection(
-          {
-            host: this.ip,
-            port: this.port,
-            ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
-            octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
-            network: this.network,  // 네트워크 번호
-            station: this.station,  // 스테이션 번호
-          },
-          (err: any) => {
-            clearTimeout(timeout);
-            if (err) {
-              resolve({
-                success: false,
-                message: `MC Protocol 초기화 실패: ${err.message || err}`,
-              });
-            } else {
-              resolve({
-                success: true,
-                message: `연결 성공 (${this.asciiMode ? "ASCII" : "Binary"} 모드, Net:${this.network}, Stn:${this.station})`,
-              });
-            }
-          }
+      // 데이터 읽기 테스트
+      const readResult = await testClient.read([{ name: this.address }]);
+
+      // 연결 종료
+      await testClient.disconnect();
+
+      if (readResult.success) {
+        const value = readResult.results[this.address]?.value;
+        logger.log(
+          "DEBUG",
+          "PLC",
+          `PLC 데이터 읽기 성공: ${this.address} = ${value}`
         );
-      });
 
-      if (!connectResult.success) {
-        logger.log("WARN", "PLC", `🔌 ${connectResult.message}`);
-        return {
-          success: false,
-          message: connectResult.message,
+        const connectionResult = {
+          success: true,
+          message: `PLC 접속 성공 (${this.ip}:${this.port}, Net:${this.network}, Stn:${this.station}, 주소: ${this.address})`,
+          version: `MC Protocol ${this.frame}`,
         };
+
+        logger.log("INFO", "PLC", `🔌 ${connectionResult.message}`);
+        return connectionResult;
+      } else {
+        const errorMsg = `데이터 읽기 실패`;
+        logger.log("WARN", "PLC", `🔌 ${errorMsg}`);
+        return { success: false, message: errorMsg };
       }
-
-      // 2단계: 연결 후 약간의 딜레이 추가 (안정화 대기)
-      await new Promise((res) => setTimeout(res, 500));
-
-      // 3단계: 데이터 읽기로 검증
-      const readResult = await new Promise<{
-        success: boolean;
-        message: string;
-      }>((resolve) => {
-        // 읽기 타임아웃 설정
-        const readTimeout = setTimeout(() => {
-          resolve({
-            success: false,
-            message: `데이터 읽기 타임아웃 (5초 이내 응답 없음) - ASCII/Binary 모드를 확인하세요`,
-          });
-        }, 5000);
-
-        try {
-          // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
-          testClient.addItems(this.address);
-
-          testClient.readAllItems((qualityBad: any, values: any) => {
-            clearTimeout(readTimeout);
-
-            // qualityBad는 boolean (ANY 데이터의 품질이 나쁜지 여부)
-            // values는 읽은 데이터 객체
-            logger.log("DEBUG", "PLC", `readAllItems 결과 - qualityBad: ${qualityBad}, values: ${JSON.stringify(values)}`);
-
-            if (!values || Object.keys(values).length === 0) {
-              resolve({
-                success: false,
-                message: `PLC에서 데이터를 읽을 수 없습니다 (비어있음) - ASCII/Binary 모드를 확인하세요`,
-              });
-            } else if (qualityBad === true) {
-              // 데이터 품질이 나쁨 - 실패로 처리 (오류가 발생한 것임)
-              resolve({
-                success: false,
-                message: `PLC 데이터 품질 불량 (qualityBad=true) - ASCII/Binary 모드를 확인하세요`,
-              });
-            } else {
-              // 실제 값 로깅
-              const readValue = values[this.address];
-              logger.log("DEBUG", "PLC", `PLC 데이터 읽기 성공: ${this.address} = ${JSON.stringify(readValue)}`);
-              resolve({
-                success: true,
-                message: `PLC 접속 성공`,
-              });
-            }
-          });
-        } catch (ex) {
-          clearTimeout(readTimeout);
-          resolve({
-            success: false,
-            message: `데이터 읽기 중 예외: ${ex}`,
-          });
-        }
-      });
-
-      const connectionResult = {
-        success: readResult.success,
-        message: readResult.success
-          ? `PLC 접속 성공 (${this.ip}:${this.port}, 주소: ${this.address})`
-          : readResult.message,
-        version: readResult.success ? "MC Protocol 3E" : undefined,
-      };
-
-      logger.log(
-        connectionResult.success ? "INFO" : "WARN",
-        "PLC",
-        `🔌 ${connectionResult.message}`
-      );
-      return connectionResult;
-    } catch (error) {
-      logger.log("ERROR", "PLC", `접속 테스트 중 예외 발생: ${error}`);
-      return { success: false, message: `예외: ${error}` };
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      logger.log("ERROR", "PLC", `접속 테스트 중 예외 발생: ${errorMsg}`);
+      return { success: false, message: `예외: ${errorMsg}` };
     }
   }
 
@@ -435,62 +359,47 @@ class PLC {
       return;
     }
 
-    if (!MCProtocol) {
+    if (!PLCClient) {
       logger.log(
         "ERROR",
         "PLC",
-        "mcprotocol 라이브러리가 설치되지 않았습니다."
+        "melsec-connect 라이브러리가 설치되지 않았습니다."
       );
       return;
     }
 
-    if (this.isConnected) return;
+    if (this.isConnected && this.client) return;
 
     logger.log(
       "DEBUG",
       "PLC",
-      `PLC 연결 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}`
+      `PLC 연결 시작 - IP: ${this.ip}, Port: ${this.port}, ASCII: ${this.asciiMode}, Net: ${this.network}, Stn: ${this.station}`
     );
 
     try {
-      this.client = new MCProtocol();
-
-      // Callback 방식을 Promise로 변환
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("연결 타임아웃 (10초)"));
-        }, 10000);
-
-        this.client.initiateConnection(
-          {
-            host: this.ip,
-            port: this.port,
-            ascii: this.asciiMode,  // 설정에서 읽은 모드 사용
-            octalInputOutput: true,  // X/Y 주소 8진법 자동 변환
-            network: this.network,  // 네트워크 번호
-            station: this.station,  // 스테이션 번호
-          },
-          (err: any) => {
-            clearTimeout(timeout);
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
+      // melsec-connect PLCClient 생성
+      this.client = new PLCClient({
+        host: this.ip,
+        port: this.port,
+        ascii: this.asciiMode,
+        frame: this.frame,
+        plcType: this.plcType,
+        network: this.network,
+        PLCStation: this.station,
+        timeout: 10000,
       });
+
+      await this.client.connect();
 
       this.isConnected = true;
       logger.log(
         "INFO",
         "PLC",
-        `PLC 연결 성공 (${this.ip}:${this.port}, 주소: ${this.address}, ${this.asciiMode ? "ASCII" : "Binary"} 모드, Net:${this.network}, Stn:${this.station})`
+        `PLC 연결 성공 (${this.ip}:${this.port}, ${this.asciiMode ? "ASCII" : "Binary"} 모드, Net:${this.network}, Stn:${this.station})`
       );
     } catch (error) {
       this.isConnected = false;
       logger.log("ERROR", "PLC", `PLC 연결 실패: ${error}`);
-      // throw error; // 연결 실패 시 로그만 남김
     }
   }
 
@@ -515,6 +424,9 @@ class PLC {
     return this.isConnected;
   }
 
+  /**
+   * PLC 상태를 읽습니다.
+   */
   async readStatus(): Promise<"RUNNING" | "STOPPED" | "WARNING"> {
     if (this.mockMode) {
       switch (this.currentState) {
@@ -527,38 +439,17 @@ class PLC {
       }
     }
 
-    if (!this.isConnected) {
+    if (!this.isConnected || !this.client) {
       await this.connect();
       if (!this.isConnected) return "RUNNING";
     }
 
     try {
-      // mcprotocol 라이브러리는 addItems + readAllItems 패턴 사용
-      const values = await new Promise<Record<string, any>>((resolve, reject) => {
-        this.client.addItems(this.address);
+      const result = await this.client.read([{ name: this.address }]);
 
-        this.client.readAllItems((_qualityBad: any, data: any) => {
-          // _qualityBad는 boolean (데이터 품질 - 사용하지 않음)
-          // data는 읽은 값들의 객체
-          if (!data) reject(new Error("No data returned"));
-          else resolve(data);
-        });
-      });
+      if (result.success && result.results[this.address]) {
+        const statusValue = result.results[this.address].value;
 
-      // values는 { [address]: value } 형태
-      const statusValue = values[this.address];
-      if (Array.isArray(statusValue)) {
-        // 배열인 경우 첫 번째 요소 사용
-        switch (statusValue[0]) {
-          case PLC_VALUES.STOPPED:
-            return "STOPPED";
-          case PLC_VALUES.WARNING:
-            return "WARNING";
-          default:
-            return "RUNNING";
-        }
-      } else {
-        // 단일 값인 경우
         switch (statusValue) {
           case PLC_VALUES.STOPPED:
             return "STOPPED";
@@ -568,6 +459,8 @@ class PLC {
             return "RUNNING";
         }
       }
+
+      return "RUNNING";
     } catch (error) {
       logger.log("ERROR", "PLC", `상태 읽기 실패: ${error}`);
       this.isConnected = false;
@@ -575,6 +468,9 @@ class PLC {
     }
   }
 
+  /**
+   * 라인 정지 명령을 전송합니다.
+   */
   async stopLine(reason: string): Promise<void> {
     logger.log(
       "ERROR",
@@ -588,49 +484,20 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected) await this.connect();
+    if (!this.isConnected || !this.client) await this.connect();
 
     try {
-      // mcprotocol 라이브러리는 writeItems 사용
-      // 콜백: (qualityBad, values) - qualityBad는 boolean
-      await new Promise<void>((resolve, reject) => {
-        let callbackExecuted = false;
-
-        // 타임아웃 설정 (10초)
-        const timeout = setTimeout(() => {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            logger.log("WARN", "PLC", `라인 정지 명령 타임아웃 (10초 응답 없음)`);
-            reject(new Error(`stopLine timeout`));
-          }
-        }, 10000);
-
-        try {
-          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
-          this.client.writeItems(
-            this.address,
-            [PLC_VALUES.STOPPED],
-            (_qualityBad: any, _values: any) => {
-              if (!callbackExecuted) {
-                callbackExecuted = true;
-                clearTimeout(timeout);
-                resolve();
-              }
-            }
-          );
-        } catch (err) {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            clearTimeout(timeout);
-            reject(err);
-          }
-        }
-      });
+      await this.client.write([
+        { name: this.address, value: PLC_VALUES.STOPPED },
+      ]);
     } catch (error) {
       logger.log("ERROR", "PLC", `정지 명령 전송 실패: ${error}`);
     }
   }
 
+  /**
+   * 라인 경고(알람) 명령을 전송합니다.
+   */
   async warnLine(reason: string): Promise<void> {
     logger.log(
       "WARN",
@@ -644,49 +511,20 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected) await this.connect();
+    if (!this.isConnected || !this.client) await this.connect();
 
     try {
-      // mcprotocol 라이브러리는 writeItems 사용
-      // 콜백: (qualityBad, values) - qualityBad는 boolean
-      await new Promise<void>((resolve, reject) => {
-        let callbackExecuted = false;
-
-        // 타임아웃 설정 (10초)
-        const timeout = setTimeout(() => {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            logger.log("WARN", "PLC", `라인 경고 명령 타임아웃 (10초 응답 없음)`);
-            reject(new Error(`warnLine timeout`));
-          }
-        }, 10000);
-
-        try {
-          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
-          this.client.writeItems(
-            this.address,
-            [PLC_VALUES.WARNING],
-            (_qualityBad: any, _values: any) => {
-              if (!callbackExecuted) {
-                callbackExecuted = true;
-                clearTimeout(timeout);
-                resolve();
-              }
-            }
-          );
-        } catch (err) {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            clearTimeout(timeout);
-            reject(err);
-          }
-        }
-      });
+      await this.client.write([
+        { name: this.address, value: PLC_VALUES.WARNING },
+      ]);
     } catch (error) {
       logger.log("ERROR", "PLC", `경고 명령 전송 실패: ${error}`);
     }
   }
 
+  /**
+   * 라인 재가동 명령을 전송합니다.
+   */
   async resetLine(): Promise<void> {
     logger.log("INFO", "PLC", `✅ 라인 재가동 명령 전송 (${this.address} = 0)`);
     this._stopReason = "";
@@ -696,44 +534,12 @@ class PLC {
       return;
     }
 
-    if (!this.isConnected) await this.connect();
+    if (!this.isConnected || !this.client) await this.connect();
 
     try {
-      // mcprotocol 라이브러리는 writeItems 사용
-      // 콜백: (qualityBad, values) - qualityBad는 boolean
-      await new Promise<void>((resolve, reject) => {
-        let callbackExecuted = false;
-
-        // 타임아웃 설정 (10초)
-        const timeout = setTimeout(() => {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            logger.log("WARN", "PLC", `라인 재가동 명령 타임아웃 (10초 응답 없음)`);
-            reject(new Error(`resetLine timeout`));
-          }
-        }, 10000);
-
-        try {
-          // 값을 배열로 감싸서 전송 (mcprotocol 호환성)
-          this.client.writeItems(
-            this.address,
-            [PLC_VALUES.RUNNING],
-            (_qualityBad: any, _values: any) => {
-              if (!callbackExecuted) {
-                callbackExecuted = true;
-                clearTimeout(timeout);
-                resolve();
-              }
-            }
-          );
-        } catch (err) {
-          if (!callbackExecuted) {
-            callbackExecuted = true;
-            clearTimeout(timeout);
-            reject(err);
-          }
-        }
-      });
+      await this.client.write([
+        { name: this.address, value: PLC_VALUES.RUNNING },
+      ]);
     } catch (error) {
       logger.log("ERROR", "PLC", `재가동 명령 전송 실패: ${error}`);
     }
