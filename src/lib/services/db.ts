@@ -719,9 +719,8 @@ class Database {
    *
    * 쿼리:
    * UPDATE ICOM_RECIEVE_DATA_NG
-   * SET NG_RELEASE_YN = 'Y',
-   *     RELEASE_TIME = SYSDATE
-   * WHERE ROWID IN (...)
+   * SET NG_RELEASE_YN = 'Y'
+   * WHERE ROWID = CHARTOROWID(:id)
    *
    * @param defectIds - 불양의 ROWID 배열
    * @param reason - 조치 사유 (로그용)
@@ -735,24 +734,41 @@ class Database {
     try {
       connection = await this.connectToOracle();
 
-      // ROWID를 IN 절에 맞도록 변환
-      // ROWID는 문자열이므로 따옴표로 감싸야 함
-      const rowidList = defectIds
-        .map((id) => `'${id.replace(/'/g, "''")}'`)
-        .join(",");
+      // ⭐ ROWID는 CHARTOROWID 함수로 변환해야 함
+      // 개별 업데이트로 처리 (바인드 변수 사용)
+      let totalRowsAffected = 0;
 
-      // ⭐ 불양 해결 처리: NG_RELEASE_YN = 'Y' 업데이트
-      const updateQuery = `
-        UPDATE "ICOM_RECIEVE_DATA_NG"
-        SET NG_RELEASE_YN = 'Y',
-            RELEASE_TIME = SYSDATE
-        WHERE ROWID IN (${rowidList})
-      `;
+      for (const rowid of defectIds) {
+        try {
+          // ⭐ 불양 해결 처리: NG_RELEASE_YN = 'Y' 업데이트
+          // RELEASE_TIME 컬럼이 없을 수 있으므로 NG_RELEASE_YN만 업데이트
+          const updateQuery = `
+            UPDATE "ICOM_RECIEVE_DATA_NG"
+            SET NG_RELEASE_YN = 'Y'
+            WHERE ROWID = CHARTOROWID(:rowid)
+          `;
 
-      const updateResult = await connection.execute(updateQuery);
-      const rowsAffected = updateResult.rowsAffected || 0;
+          const updateResult = await connection.execute(updateQuery, {
+            rowid: rowid,
+          });
 
-      if (rowsAffected === 0) {
+          totalRowsAffected += updateResult.rowsAffected || 0;
+
+          logger.log(
+            "DEBUG",
+            "DB",
+            `[Oracle] ROWID ${rowid} 업데이트 결과: ${updateResult.rowsAffected}행`
+          );
+        } catch (rowError) {
+          logger.log(
+            "WARN",
+            "DB",
+            `[Oracle] ROWID ${rowid} 업데이트 실패: ${rowError}`
+          );
+        }
+      }
+
+      if (totalRowsAffected === 0) {
         logger.log(
           "WARN",
           "DB",
@@ -767,7 +783,7 @@ class Database {
       logger.log(
         "INFO",
         "DB",
-        `[Oracle] 불양 ${rowsAffected}개 해결 처리 완료 (사유: ${reason})`
+        `[Oracle] 불양 ${totalRowsAffected}개 해결 처리 완료 (사유: ${reason})`
       );
 
       return true;

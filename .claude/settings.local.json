@@ -22,7 +22,16 @@
       "Bash(curl:*)",
       "Bash(pkill -f \"npm run dev\")",
       "Bash(dir:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(npx patch-package:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm show:*)",
+      "WebSearch",
+      "Bash(npm search:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npm uninstall:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
